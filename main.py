@@ -1482,7 +1482,7 @@ def get_booth_data(selected_sub_caste, selected_caste, selected_district, select
         if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal and selected_village:
             query = """
                 SELECT ps_no, SUM(grand_total) 
-                FROM aptomorrow.BLI 
+                FROM BLI 
                 WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s
                 GROUP BY ps_no;
             """
@@ -1490,7 +1490,7 @@ def get_booth_data(selected_sub_caste, selected_caste, selected_district, select
         elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal and selected_village:
             query = """
                 SELECT ps_no, SUM(grand_total) 
-                FROM aptomorrow.BLI 
+                FROM BLI 
                 WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
                 GROUP BY ps_no;
             """
@@ -1498,7 +1498,7 @@ def get_booth_data(selected_sub_caste, selected_caste, selected_district, select
         elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
             query = """
                 SELECT ps_no, SUM(grand_total) 
-                FROM aptomorrow.BLI 
+                FROM BLI 
                 WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
                 GROUP BY ps_no;
             """
@@ -2112,7 +2112,7 @@ def update_polling_assembly_constituencies(selected_parliamentary_constituency):
     cursor = conn.cursor()
 
     # Fetch all distinct assembly constituencies from the database for the selected parliamentary constituency
-    query = """SELECT DISTINCT ac_code,assembly FROM apt_20141019_polling_data_all_constituencies WHERE pc_code = %s ORDER BY assembly;"""
+    query = """SELECT DISTINCT ac_code,assembly FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = %s ORDER BY assembly;"""
     cursor.execute(query, (selected_parliamentary_constituency,))
     polling_ac_options = [{'label': f'{assembly} ({ac_code})', 'value': ac_code} for ac_code, assembly in
                           cursor.fetchall()]
@@ -2133,7 +2133,7 @@ def update_polling_parliamentary_constituencies(selected_parliamentary_constitue
     cursor = conn.cursor()
 
     # Fetch all distinct parliamentary constituencies from the database
-    query = """SELECT DISTINCT pc_code,parliament FROM apt_20141019_polling_data_all_constituencies ORDER BY parliament;"""
+    query = """SELECT DISTINCT pc_code,parliament FROM apt201419_polling_data_all_constituencies_ ORDER BY parliament;"""
     cursor.execute(query)
     polling_pc_options = [{'label': f'{parliament} ({pc_code})', 'value': pc_code} for pc_code, parliament in
                           cursor.fetchall()]
@@ -2154,7 +2154,7 @@ def update_polling_mandal(selected_polling_constituency, selected_parliamentary_
     conn = get_database_connection()
     cursor = conn.cursor()
     # Fetch all distinct polling villages from the database
-    query = """SELECT DISTINCT mandalortown FROM apt_20141019_polling_data_all_constituencies WHERE pc_code = %s AND ac_code=%s ORDER BY mandalortown;"""
+    query = """SELECT DISTINCT mandalortown FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = %s AND ac_code=%s ORDER BY mandalortown;"""
     cursor.execute(query, (selected_parliamentary_const, selected_polling_constituency))
     polling_mandal_options = [{'label': mandalortown, 'value': mandalortown} for mandalortown in
                               cursor.fetchall()]
@@ -2177,7 +2177,7 @@ def update_polling_village(selected_polling_constituency, selected_parliamentary
     selected_mandal = selected_mandal[0] if selected_mandal else None
     cursor = conn.cursor()
     # Fetch all distinct polling villages from the database
-    query = """SELECT DISTINCT village FROM apt_20141019_polling_data_all_constituencies WHERE pc_code = %s AND ac_code=%s AND mandalortown = %s ORDER BY village;"""
+    query = """SELECT DISTINCT village FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = %s AND ac_code=%s AND mandalortown = %s ORDER BY village;"""
     cursor.execute(query, (selected_parliamentary_const, selected_polling_constituency, selected_mandal))
     polling_village_options = [{'label': village, 'value': village} for village in
                                cursor.fetchall()]
@@ -2627,35 +2627,35 @@ def get_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, select
             if selected_pc and selected_ac and selected_mandal and selected_polling_village:
                 query = """
                     SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
-                    FROM apt_20141019_polling_data_all_constituencies
+                    FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s AND village = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal, selected_polling_village))
             elif selected_pc and selected_ac and selected_mandal:
                 query = """
                     SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
-                    FROM apt_20141019_polling_data_all_constituencies
+                    FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal))
             elif selected_pc and selected_ac:
                 query = """
                     SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
-                    FROM apt_20141019_polling_data_all_constituencies
+                    FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac))
             elif selected_pc:
                 query = """
                     SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
-                    FROM apt_20141019_polling_data_all_constituencies
+                    FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s;
                 """
                 cursor.execute(query, (selected_pc, ))
             elif selected_ac:
                 query = """
                     SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
-                    FROM apt_20141019_polling_data_all_constituencies
+                    FROM apt201419_polling_data_all_constituencies_
                     WHERE ac_code = %s
                 """
                 cursor.execute(query, (selected_ac, ))
@@ -2728,35 +2728,35 @@ def get_age_group_data(selected_pc, selected_ac, selected_mandal, selected_polli
             if selected_pc and selected_ac and selected_mandal and selected_polling_village:
                 query = """
                     SELECT age_group, SUM(groupcount) 
-                    FROM ap_agegroupcounts_jan24 
+                    FROM ap_age_group_counts_jan24 
                     WHERE pc_number = %s AND assembly_number = %s AND mandal = %s AND village_or_area_name = %s AND age_group!='' GROUP BY age_group;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal, selected_polling_village))
             elif selected_pc and selected_ac and selected_mandal:
                 query = """
                     SELECT age_group, SUM(groupcount) 
-                    FROM ap_agegroupcounts_jan24 
+                    FROM ap_age_group_counts_jan24 
                     WHERE pc_number = %s AND assembly_number = %s AND mandal = %s AND age_group!='' GROUP BY age_group;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal))
             elif selected_pc and selected_ac:
                 query = """
                     SELECT age_group, SUM(groupcount) 
-                    FROM ap_agegroupcounts_jan24 
+                    FROM ap_age_group_counts_jan24 
                     WHERE pc_number = %s AND assembly_number = %s AND age_group!='' GROUP BY age_group;
                 """
                 cursor.execute(query, (selected_pc, selected_ac))
             elif selected_ac:
                 query = """
                     SELECT age_group, SUM(groupcount) 
-                    FROM ap_agegroupcounts_jan24 
+                    FROM ap_age_group_counts_jan24 
                     WHERE assembly_number = %s AND age_group!='' GROUP BY age_group;
                 """
                 cursor.execute(query, (selected_ac,))
             elif selected_pc:
                 query = """
                     SELECT age_group, SUM(groupcount)
-                    FROM ap_agegroupcounts_jan24 
+                    FROM ap_age_group_counts_jan24
                     WHERE pc_number = %s AND age_group!='' GROUP BY age_group;
                 """
                 cursor.execute(query, (selected_pc,))
@@ -2984,7 +2984,7 @@ def getEstimated2024Count(selected_pc, selected_ac, selected_mandal, selected_po
 
         query = """
             SELECT SUM(groupcount) 
-            FROM ap_agegroupcounts_jan24 
+            FROM ap_age_group_counts_jan24 
             WHERE 1=1
         """
 
