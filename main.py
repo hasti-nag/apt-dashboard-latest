@@ -210,12 +210,12 @@ dash_app.layout = html.Div(style={'backgroundColor': '#f2f2f2'}, children=[
         ], className="mb-4"),
         dbc.Row([
             dbc.Col([
-                html.H2("Voter Caste Breakdown", className="text-center"),  # Title for the pie chart
-                dcc.Graph(id='voter-pie-chart', className="mt-4", style={'height': '600px'}),
+                html.H2("2019 Voter Caste Breakdown", className="text-center"),  # Title for the pie chart
+                dcc.Graph(id='voter-pie-chart', className="mt-4", style={'height': '550px'}),
             ], width={"size": 12, "order": "first", "offset": 0}, lg=4, md=12, sm=12, xs=12),
             dbc.Col([
-                html.H2("Voter Sub-Caste Breakdown", className="text-center"),  # Title for the sub-caste breakdown
-                dcc.Graph(id='voter-sub-caste-chart', className="mt-4", style={'height': '600px'}),
+                html.H2("2019 Voter Sub-Caste Breakdown", className="text-center"),  # Title for the sub-caste breakdown
+                dcc.Graph(id='voter-sub-caste-chart', className="mt-4", style={'height': '550px'}),
             ], width={"size": 12, "order": "last", "offset": 0}, lg=8, md=12, sm=12, xs=12),
         ], className="mb-4"),
     ], fluid=True)
@@ -360,7 +360,7 @@ def update_caste_options(selected_caste):
     query = """SELECT DISTINCT caste_id, caste FROM BLI WHERE caste NOT IN ('Dead', 'Deleted', 'Not Traced') ORDER BY caste;"""
     cursor.execute(query)
     caste_options = [{'label': caste, 'value': caste_id} for caste_id, caste in cursor.fetchall()]
-
+    caste_options.insert(0, {'label': 'All', 'value': 'casteall'})
     cursor.close()
     conn.close()
 
@@ -572,6 +572,15 @@ def update_sub_caste_options(selected_caste):
     if selected_caste is None:
         return [{'label': 'Please Select a Caste', 'value': None}]
 
+    elif selected_caste == 'casteall':
+        query = """SELECT DISTINCT sub_caste, subcaste FROM BLI ORDER BY subcaste;"""
+
+        cursor.execute(query)
+        sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
+
+        cursor.close()
+        conn.close()
+        return sub_caste_options
     else:
         # Fetch all distinct districts from the database
         query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE caste_id = %s ORDER BY subcaste;"""
@@ -662,19 +671,19 @@ def update_voter_pie_chart(selected_caste, selected_district, selected_sub_caste
         fig.update_layout(
             annotations=[
                 dict(
-                    text=f'Total Voters: {total_count}',
-                    x=0.5,
-                    y=1.1,  # Adjust the position as needed
+                    text=f'<b>Total Voters: {total_count}<b>',
+                    x=0.3,
+                    y=1.2,  # Adjust the position as needed
                     showarrow=False,
                     font=dict(family="Arial", size=14, color="RebeccaPurple"),
                 )
             ],
             title=dict(
                 text=title,
-                font=dict(family="Arial", size=14, color="black")
+                font=dict(family="Arial", size=12, color="black")
             )
         )
-        fig.update_traces(hole=0.3)
+        fig.update_traces(hole=0.2)
         # Serialize figures to JSON format
     return fig, total_count
 
@@ -851,6 +860,7 @@ def get_data(selected_caste, selected_district, selected_sub_caste, selected_pc,
 def update_charts(click_data, selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal,
                   selected_village, selected_booth, caste_option, sub_caste_option, district_option, pc_option, ac_option, mandal_option, village_option, booth_option, total_voters):
 
+    #getVoterCasteEstimated2024Count()
     # Determine if the total count should be taken from the pie chart or calculated within the function
     voter_sub_caste_chart_figure = update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_district,
                                                                 selected_pc, selected_ac, selected_mandal, selected_village, selected_booth,
@@ -868,7 +878,6 @@ def update_charts(click_data, selected_caste, selected_sub_caste, selected_distr
                                                                   sub_caste_option, district_option, pc_option,
                                                                   ac_option, mandal_option, village_option, booth_option, total_voters)
             # Return the updated figure
-            sub_caste_chart_json = voter_sub_caste_chart_figure.to_json()
             return voter_sub_caste_chart_figure
         else:
             # Handle the case when no click occurs
@@ -877,8 +886,7 @@ def update_charts(click_data, selected_caste, selected_sub_caste, selected_distr
 
 
 def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac,
-                                 selected_mandal,
-                                 selected_village, selected_booth, caste_option, sub_caste_option, district_option,
+                                 selected_mandal, selected_village, selected_booth, caste_option, sub_caste_option, district_option,
                                  pc_option, ac_option, mandal_option, village_option, booth_option, total_voters):
     # Retrieve labels for selected options
     selected_caste_label = next((option['label'] for option in caste_option if option['value'] == selected_caste), None)
@@ -900,14 +908,7 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
     total_voters_caste = ''
     voters_total_title = ''
     # Update data and title based on selected options
-    if selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village and selected_booth:
-        data = get_sub_caste_byBooth_data(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal,
-                                          selected_village, selected_booth)
-        title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> Booths: <b style="color:red;">{selected_booth_label}</b>'
-        header_label = 'Sub-Caste'
-        voters_total_title = 'Booths'
-        total_voters_caste = selected_sub_caste_label
-    elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
+    if selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
         data = get_booth_data(selected_sub_caste, selected_caste, selected_district, selected_pc, selected_ac,
                               selected_mandal, selected_village)
         title = f'<b style="color:red;">SubCaste Breakup</b> For Sub-Caste: <b style="color:red;">{selected_sub_caste_label}</b> Villages: <b style="color:red;">{selected_village_label}</b>'
@@ -969,8 +970,62 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
         header_label = 'Districts'
         voters_total_title = 'Sub-Caste'
         total_voters_caste = selected_sub_caste_label
+    elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village and selected_booth:
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth)
+        title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b> Mandal: <b style="color:red;">{selected_mandal_label}</b>' \
+                f' Village: <b style="color:red;">{selected_village_label}</b> Booth: <b style="color:red;">{selected_booth_label}</b>'
+        header_label = 'Booths'
+        voters_total_title = 'Sub-Caste'
+    elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, None)
+        title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b> Mandal: <b style="color:red;">{selected_mandal_label}</b>' \
+                f' Village: <b style="color:red;">{selected_village_label}</b>'
+        header_label = 'Villages'
+        voters_total_title = 'Sub-Caste'
+    elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal:
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, None, None)
+        title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b> Mandal: <b style="color:red;">{selected_mandal_label}</b>'
+        header_label = 'Mandals'
+        voters_total_title = 'Sub-Caste'
+    elif selected_caste and selected_district and selected_pc and selected_ac:
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, None, None, None)
+        if selected_pc != 'acall':
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                    f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b>'
+            header_label = 'AC'
+            voters_total_title = 'Sub-Caste'
+        else:
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                    f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">All</b>'
+            header_label = 'AC'
+            voters_total_title = 'Sub-Caste'
+    elif selected_caste and selected_district and selected_pc:
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, None, None, None, None)
+        if selected_pc != 'pcall':
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                    f'</b> PC: <b style="color:red;">{selected_pc_label}</b>'
+            header_label = 'PC'
+            voters_total_title = 'Sub-Caste'
+        else:
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
+                    f'</b> PC: <b style="color:red;">All</b>'
+            header_label = 'PC'
+            voters_total_title = 'Sub-Caste'
+    elif selected_caste and selected_district:
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, None, None, None, None, None)
+        if selected_district != 'districtall':
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>'
+            header_label = 'Districts'
+            voters_total_title = 'Sub-Caste'
+        else:
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">All</b>'
+            header_label = 'Districts'
+            voters_total_title = 'Sub-Caste'
     elif selected_caste:
-        data = get_sub_caste_data_for_caste(selected_caste)
+        data = getSub_Caste_data_without_sub_caste_selected(selected_caste, None, None, None, None, None, None)
         title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}, Entire AP</b>'
         header_label = 'Sub-Caste'
         voters_total_title = 'All'
@@ -989,7 +1044,7 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
         # Calculate percentage
         total_voters_float = float(total_voters)
         # Calculate percentages and convert to strings with two digits after the decimal point
-        df['Percentage'] = (df['NumVoters'] / df['NumVoters'].sum() * 100).apply(lambda x: '{:.2f}%'.format(x))
+        df['Percentage'] = (df['NumVoters'] / total_voters * 100).apply(lambda x: '{:.2f}%'.format(x))
         df['TotalPercentage'] = (df['NumVoters'].astype(float) / total_voters_float * 100).apply(
             lambda x: '{:.2f}%'.format(x))
 
@@ -1013,7 +1068,7 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
         # Create a table without the sequence numbers
         fig = go.Figure(data=[go.Table(
             header=dict(values=[f'<b>{header_label}</b>', '<b>NumVoters</b>', '<b>Percentage</b>',
-                                '<b>Percentage of Total AP Voters</b>', '<b>2024 Estimated</b>'],
+                                '<b>2024 Estimated</b>'],
                         align=['left', 'center', 'center'],
                         font=dict(size=12),  # Adjust header font size
                         height=40,
@@ -1022,7 +1077,6 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
             cells=dict(values=[df[header_label].apply(lambda x: '<b>' + str(x) + '</b>'),
                                df['NumVoters'].astype(str),
                                df['Percentage'],
-                               df['TotalPercentage'],
                                ''],
                        align=['left', 'center', 'center'],
                        font=dict(size=10),  # Adjust cell font size
@@ -1080,58 +1134,58 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
     return {}
 
 
-def get_ac_data_with_caste(selected_district, selected_caste, selected_pc, selected_ac):
+def getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth):
     conn = get_database_connection()
     cursor = conn.cursor()
-    if selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac == 'acall':
-        query = """
-            SELECT ac_name, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s
-            GROUP BY ac_name;
-        """
-        cursor.execute(query, (selected_caste, ))
-    elif selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac:
-        query = """
-            SELECT mandal_name, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s AND ac_no = %s
-            GROUP BY mandal_name;
-        """
-        cursor.execute(query, (selected_caste, selected_ac))
-    elif selected_caste and selected_district != 'districtall' and selected_pc == 'pcall' and selected_ac == 'acall':
-        query = """
-            SELECT ac_name, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s AND district_code = %s
-            GROUP BY ac_name;
-        """
-        cursor.execute(query, (selected_caste, selected_pc, selected_district))
-    elif selected_caste and selected_district != 'districtall' and selected_pc == 'pcall' and selected_ac:
-        query = """
-            SELECT mandal_name, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s AND ac_no = %s AND district_code = %s
-            GROUP BY mandal_name;
-        """
-        cursor.execute(query, (selected_caste, selected_pc, selected_district))
-    elif selected_caste and selected_district == 'districtall' and selected_pc != 'pcall' and selected_ac:
-        query = """
-            SELECT mandal_name, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s AND pc_code = %s AND ac_no = %s
-            GROUP BY mandal_name;
-        """
-        cursor.execute(query, (selected_caste, selected_pc, selected_ac))
-    else:
-        query = """ 
-            SELECT mandal_name, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s AND district_code = %s AND pc_code = %s AND ac_no = %s
-            GROUP BY mandal_name;
-        """
-        cursor.execute(query, (selected_caste, selected_district, selected_pc, selected_ac))
 
+    # Define the base query
+    base_query = """
+        SELECT subcaste, SUM(grand_total) 
+        FROM BLI 
+        WHERE {} 
+        GROUP BY subcaste
+    """
+
+    # Add filters based on selected criteria
+    filters = []
+    params = []
+
+    if selected_district and selected_district != 'districtall':
+        filters.append("district_code = %s")
+        params.append(selected_district)
+
+    if selected_pc and selected_pc != 'pcall':
+        filters.append("pc_code = %s")
+        params.append(selected_pc)
+
+    if selected_ac and selected_ac != 'acall':
+        filters.append("ac_no = %s")
+        params.append(selected_ac)
+
+    if selected_mandal:
+        filters.append("mandal_id = %s")
+        params.append(selected_mandal)
+
+    if selected_village:
+        filters.append("village_id = %s")
+        params.append(selected_village)
+
+    if selected_caste and selected_caste != 'casteall':
+        filters.append("caste = %s")
+        params.append(selected_caste)
+    else:
+        filters.append("caste NOT IN ('Dead', 'Deleted', 'Not Traced')")
+
+    if selected_booth:
+        filters.append("booth_id = %s")
+        params.append(selected_booth)
+
+    where_clause = " AND ".join(filters)
+
+    # Construct the final query
+    final_query = base_query.format(where_clause)
+
+    cursor.execute(final_query, tuple(params))
     data1 = cursor.fetchall()
 
     cursor.close()
@@ -1139,110 +1193,32 @@ def get_ac_data_with_caste(selected_district, selected_caste, selected_pc, selec
     return data1
 
 
-def get_pc_data_with_caste(selected_district, selected_caste, selected_pc):
-    conn = None
-    cursor = None
-    data1 = []
-    try:
-        conn = get_database_connection()
-        cursor = conn.cursor()
-        if selected_caste and selected_district == 'districtall' and selected_pc == 'pcall':
-            query = """
-                SELECT pc_name, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s
-                GROUP BY pc_name;
-            """
-            cursor.execute(query, (selected_caste, ))
-        elif selected_caste and selected_district != 'districtall' and selected_pc == 'pcall':
-            query = """
-                SELECT pc_name, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND district_code = %s
-                GROUP BY pc_name;
-            """
-            cursor.execute(query, (selected_caste, selected_district))
-        elif selected_caste and selected_district == 'districtall' and selected_pc:
-            query = """
-                SELECT ac_name, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND pc_code = %s
-                GROUP BY ac_name;
-            """
-            cursor.execute(query, (selected_caste, selected_pc))
-        else:
-            query = """ 
-                SELECT ac_name, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND district_code = %s AND pc_code = %s
-                GROUP BY ac_name;
-            """
-            cursor.execute(query, (selected_caste, selected_district, selected_pc))
-
-        data1 = cursor.fetchall()
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-    return data1
-
-
-def get_district_data_with_caste(selected_district, selected_caste):
-    conn = None
-    cursor = None
-    data1 = []
-    try:
-        conn = get_database_connection()
-        cursor = conn.cursor()
-        if selected_district == 'districtall':
-            query = """
-                SELECT district_name, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s
-                GROUP BY district_name;
-            """
-            cursor.execute(query, (selected_caste, ))
-        else:
-            query = """ 
-                SELECT pc_name, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND district_code = %s
-                GROUP BY pc_name;
-            """
-            cursor.execute(query, (selected_caste, selected_district))
-
-        data1 = cursor.fetchall()
-
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-    return data1
-
-
 def get_district_data(selected_sub_caste, selected_caste):
     conn = None
     cursor = None
     data1 = []
+
     try:
         conn = get_database_connection()
         cursor = conn.cursor()
-        if selected_sub_caste and selected_caste:
+
+        if selected_caste == 'casteall':
             query = """ 
-                SELECT district_name, SUM(grand_total) 
+                SELECT district_name, sub_caste, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s
-                GROUP BY district_name;
+                WHERE sub_caste = %s
+                GROUP BY district_name, sub_caste;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste))
+            cursor.execute(query, (selected_sub_caste,))
+        else:
+            if selected_sub_caste and selected_caste:
+                query = """ 
+                    SELECT district_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s
+                    GROUP BY district_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste))
 
         data1 = cursor.fetchall()
 
@@ -1266,23 +1242,42 @@ def get_pc_data(selected_sub_caste, selected_caste, selected_district):
         conn = get_database_connection()
         cursor = conn.cursor()
 
-        if selected_sub_caste and selected_caste and selected_district == 'districtall':
+        if selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall':
             query = """
                 SELECT district_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s
+                WHERE sub_caste = %s
                 GROUP BY district_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste))
+            cursor.execute(query, (selected_sub_caste,))
 
-        elif selected_sub_caste and selected_caste and selected_district:
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district:
             query = """
                 SELECT pc_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE district_code = %s AND caste_id = %s AND sub_caste = %s
+                WHERE district_code = %s AND sub_caste = %s
                 GROUP BY pc_name;
             """
-            cursor.execute(query, (selected_district, selected_caste, selected_sub_caste))
+            cursor.execute(query, (selected_district, selected_sub_caste))
+
+        else:
+            if selected_sub_caste and selected_caste and selected_district == 'districtall':
+                query = """
+                    SELECT district_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s
+                    GROUP BY district_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste))
+
+            elif selected_sub_caste and selected_caste and selected_district:
+                query = """
+                    SELECT pc_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE district_code = %s AND caste_id = %s AND sub_caste = %s
+                    GROUP BY pc_name;
+                """
+                cursor.execute(query, (selected_district, selected_caste, selected_sub_caste))
 
         data1 = cursor.fetchall()
 
@@ -1306,38 +1301,71 @@ def get_ac_data(selected_sub_caste, selected_caste, selected_district, selected_
         conn = get_database_connection()
         cursor = conn.cursor()
 
-        if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall':
+        if selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc == 'pcall':
             query = """
                 SELECT pc_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s
+                WHERE sub_caste = %s
                 GROUP BY pc_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste))
-        elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc:
+            cursor.execute(query, (selected_sub_caste,))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc:
             query = """
                 SELECT ac_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s
+                WHERE sub_caste = %s AND pc_code = %s
                 GROUP BY ac_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc))
-        elif selected_sub_caste and selected_caste and selected_district != 'districtall' and selected_pc == 'pcall':
+            cursor.execute(query, (selected_sub_caste, selected_pc))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district != 'districtall' and selected_pc == 'pcall':
             query = """
                 SELECT ac_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND district_code = %s
+                WHERE sub_caste = %s AND district_code = %s
                 GROUP BY ac_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_district))
-        elif selected_sub_caste and selected_caste and selected_district and selected_pc:
+            cursor.execute(query, (selected_sub_caste, selected_district))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district and selected_pc:
             query = """
                 SELECT ac_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s
+                WHERE sub_caste = %s AND district_code = %s AND pc_code = %s
                 GROUP BY ac_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc))
+            cursor.execute(query, (selected_sub_caste, selected_district, selected_pc))
+        else:
+            if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall':
+                query = """
+                    SELECT pc_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s
+                    GROUP BY pc_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste))
+            elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc:
+                query = """
+                    SELECT ac_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s
+                    GROUP BY ac_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc))
+            elif selected_sub_caste and selected_caste and selected_district != 'districtall' and selected_pc == 'pcall':
+                query = """
+                    SELECT ac_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND district_code = %s
+                    GROUP BY ac_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_district))
+            elif selected_sub_caste and selected_caste and selected_district and selected_pc:
+                query = """
+                    SELECT ac_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s
+                    GROUP BY ac_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc))
 
         data1 = cursor.fetchall()
 
@@ -1361,54 +1389,103 @@ def get_mandal_data(selected_sub_caste, selected_caste, selected_district, selec
         conn = get_database_connection()
         cursor = conn.cursor()
 
-        if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac == 'acall':
+        if selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac == 'acall':
             query = """
                 SELECT ac_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s
+                WHERE sub_caste = %s
                 GROUP BY ac_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste))
-        elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac:
+            cursor.execute(query, (selected_sub_caste,))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac:
             query = """
                 SELECT mandal_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s
+                WHERE sub_caste = %s AND ac_no = %s
                 GROUP BY mandal_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_ac))
-        elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac == 'acall':
+            cursor.execute(query, (selected_sub_caste, selected_ac))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc and selected_ac == 'acall':
             query = """
                 SELECT ac_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s
+                WHERE sub_caste = %s AND pc_code = %s
                 GROUP BY ac_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc))
-        elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac:
+            cursor.execute(query, (selected_sub_caste, selected_pc))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc and selected_ac:
             query = """
                 SELECT mandal_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s
+                WHERE sub_caste = %s AND pc_code = %s AND ac_no = %s
                 GROUP BY mandal_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc, selected_ac))
-        elif selected_sub_caste and selected_caste and selected_district and selected_pc == 'pcall' and selected_ac == 'acall':
+            cursor.execute(query, (selected_sub_caste, selected_pc, selected_ac))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district and selected_pc == 'pcall' and selected_ac == 'acall':
             query = """
                 SELECT mandal_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND district_code = %s
+                WHERE sub_caste = %s AND district_code = %s
                 GROUP BY mandal_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_district))
-        elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac:
+            cursor.execute(query, (selected_sub_caste, selected_district))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district and selected_pc and selected_ac:
             query = """
                 SELECT mandal_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s
+                WHERE sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s
                 GROUP BY mandal_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac))
+            cursor.execute(query, (selected_sub_caste, selected_district, selected_pc, selected_ac))
+        else:
+            if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac == 'acall':
+                query = """
+                    SELECT ac_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s
+                    GROUP BY ac_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste))
+            elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac:
+                query = """
+                    SELECT mandal_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s
+                    GROUP BY mandal_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_ac))
+            elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac == 'acall':
+                query = """
+                    SELECT ac_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s
+                    GROUP BY ac_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc))
+            elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac:
+                query = """
+                    SELECT mandal_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s
+                    GROUP BY mandal_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc, selected_ac))
+            elif selected_sub_caste and selected_caste and selected_district and selected_pc == 'pcall' and selected_ac == 'acall':
+                query = """
+                    SELECT mandal_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND district_code = %s
+                    GROUP BY mandal_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_district))
+            elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac:
+                query = """
+                    SELECT mandal_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s
+                    GROUP BY mandal_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac))
 
         data1 = cursor.fetchall()
 
@@ -1432,30 +1509,55 @@ def get_village_data(selected_sub_caste, selected_caste, selected_district, sele
         conn = get_database_connection()
         cursor = conn.cursor()
 
-        if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal:
+        if selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal:
             query = """
                 SELECT village_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s AND mandal_id = %s
+                WHERE sub_caste = %s AND ac_no = %s AND mandal_id = %s
                 GROUP BY village_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_ac, selected_mandal))
-        elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal:
+            cursor.execute(query, (selected_sub_caste, selected_ac, selected_mandal))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal:
             query = """
                 SELECT village_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s
+                WHERE sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s
                 GROUP BY village_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc, selected_ac, selected_mandal))
-        elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal:
+            cursor.execute(query, (selected_sub_caste, selected_pc, selected_ac, selected_mandal))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district and selected_pc and selected_ac and selected_mandal:
             query = """
                 SELECT village_name, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s 
+                WHERE sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s 
                 GROUP BY village_name;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal))
+            cursor.execute(query, (selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal))
+        else:
+            if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal:
+                query = """
+                    SELECT village_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s AND mandal_id = %s
+                    GROUP BY village_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_ac, selected_mandal))
+            elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal:
+                query = """
+                    SELECT village_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s
+                    GROUP BY village_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc, selected_ac, selected_mandal))
+            elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal:
+                query = """
+                    SELECT village_name, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s 
+                    GROUP BY village_name;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal))
 
         data1 = cursor.fetchall()
 
@@ -1479,30 +1581,55 @@ def get_booth_data(selected_sub_caste, selected_caste, selected_district, select
         conn = get_database_connection()
         cursor = conn.cursor()
 
-        if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal and selected_village:
+        if selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal and selected_village:
             query = """
                 SELECT ps_no, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s
+                WHERE sub_caste = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s
                 GROUP BY ps_no;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_ac, selected_mandal, selected_village))
-        elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal and selected_village:
+            cursor.execute(query, (selected_sub_caste, selected_ac, selected_mandal, selected_village))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal and selected_village:
             query = """
                 SELECT ps_no, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
+                WHERE sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
                 GROUP BY ps_no;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc, selected_ac, selected_mandal, selected_village))
-        elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
+            cursor.execute(query, (selected_sub_caste, selected_pc, selected_ac, selected_mandal, selected_village))
+        elif selected_caste == 'casteall' and selected_sub_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
             query = """
                 SELECT ps_no, SUM(grand_total) 
                 FROM BLI 
-                WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
+                WHERE sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
                 GROUP BY ps_no;
             """
-            cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village))
+            cursor.execute(query, (selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village))
+        else:
+            if selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal and selected_village:
+                query = """
+                    SELECT ps_no, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s
+                    GROUP BY ps_no;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_ac, selected_mandal, selected_village))
+            elif selected_sub_caste and selected_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal and selected_village:
+                query = """
+                    SELECT ps_no, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
+                    GROUP BY ps_no;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_pc, selected_ac, selected_mandal, selected_village))
+            elif selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
+                query = """
+                    SELECT ps_no, SUM(grand_total) 
+                    FROM BLI 
+                    WHERE caste_id = %s AND sub_caste = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s 
+                    GROUP BY ps_no;
+                """
+                cursor.execute(query, (selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village))
 
         data1 = cursor.fetchall()
 
@@ -1515,75 +1642,6 @@ def get_booth_data(selected_sub_caste, selected_caste, selected_district, select
             conn.close()
 
     return data1
-
-
-def get_sub_caste_byBooth_data(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth):
-    conn = get_database_connection()
-    cursor = conn.cursor()
-    data1 = []
-    try:
-        conn = get_database_connection()
-        cursor = conn.cursor()
-
-        if selected_caste and selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac and selected_mandal and selected_village and selected_booth:
-            query = """
-                SELECT subcaste, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s AND booth_id = %s  
-                AND caste NOT IN ('Dead', 'Deleted', 'Not Traced')
-                GROUP BY subcaste;
-            """
-            cursor.execute(query, (selected_caste, selected_ac, selected_mandal, selected_village, selected_booth))
-        elif selected_caste and selected_district == 'districtall' and selected_pc and selected_ac and selected_mandal and selected_village and selected_booth:
-            query = """
-                SELECT subcaste, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s AND booth_id = %s  
-                AND caste NOT IN ('Dead', 'Deleted', 'Not Traced')
-                GROUP BY subcaste;
-            """
-            cursor.execute(query, (selected_caste, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth))
-        elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village and selected_booth:
-            query = """
-                SELECT subcaste, SUM(grand_total) 
-                FROM BLI 
-                WHERE caste_id = %s AND district_code = %s AND pc_code = %s AND ac_no = %s AND mandal_id = %s AND village_id = %s AND booth_id = %s  
-                AND caste NOT IN ('Dead', 'Deleted', 'Not Traced')
-                GROUP BY subcaste;
-            """
-            cursor.execute(query, (selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth))
-
-        data1 = cursor.fetchall()
-
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
-    return data1
-
-
-def get_sub_caste_data_for_caste(selected_caste):
-    conn = get_database_connection()
-    cursor = conn.cursor()
-    if selected_caste:
-        query = """
-            SELECT subcaste, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste_id = %s 
-            AND caste NOT IN('Dead', 'Deleted', 'Not Traced')
-            GROUP BY subcaste;
-        """
-        cursor.execute(query, (selected_caste, ))
-
-        data1 = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-        return data1
 
 
 def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, selected_ac, selected_mandal,
@@ -1670,9 +1728,8 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
 
     df = pd.DataFrame(data1, columns=['Sub-Caste', 'NumVoters'])
     total_voters_float = float(total_voters)
-
     # Calculate percentages and convert to strings with two digits after the decimal point
-    df['Percentage'] = (df['NumVoters'] / df['NumVoters'].sum() * 100).apply(lambda x: '{:.2f}%'.format(x))
+    df['Percentage'] = (df['NumVoters'] / total_voters * 100).apply(lambda x: '{:.2f}%'.format(x))
     df['TotalPercentage'] = (df['NumVoters'].astype(float) / total_voters_float * 100).apply(
         lambda x: '{:.2f}%'.format(x))
 
@@ -1682,7 +1739,7 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
 
     # Create a new row to display the totals
     total_row = pd.DataFrame({'Sub Caste': [''],
-                              'NumVoters': [total_voters_str],
+                              'Num of Voters': [total_voters_str],
                               'Percentage': [''],
                               'TotalPercentage': [total_ap_voters_str]})
 
@@ -1693,13 +1750,13 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
     df.fillna('', inplace=True)
     # Create a table
     sub_caste_fig = go.Figure(data=[go.Table(
-        header=dict(values=['Sub Caste', 'NumVoters', 'Percentage', 'Percentage of Total Voters', '2024 Estimated'],
+        header=dict(values=['Sub Caste', 'Num of Voters', 'Percentage', '2024 Estimated'],
                     align=['left', 'center', 'center'],
                     font=dict(size=14),
                     height=40,
                     fill=dict(color='lightgray'),
                     line=dict(color='darkslategray', width=2)),
-        cells=dict(values=[df['Sub-Caste'], df['NumVoters'].astype(str), df['Percentage'], df['TotalPercentage'], ''],
+        cells=dict(values=[df['Sub-Caste'], df['NumVoters'].astype(str), df['Percentage'], ''],
                    align=['left', 'center', 'center'],
                    font=dict(size=12),
                    height=30,
@@ -2626,37 +2683,38 @@ def get_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, select
             # Modify the SQL query based on your database schema and filter conditions
             if selected_pc and selected_ac and selected_mandal and selected_polling_village:
                 query = """
-                    SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s AND village = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal, selected_polling_village))
             elif selected_pc and selected_ac and selected_mandal:
                 query = """
-                    SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal))
             elif selected_pc and selected_ac:
                 query = """
-                    SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac))
             elif selected_pc:
                 query = """
-                    SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s;
                 """
+                print(query)
                 cursor.execute(query, (selected_pc, ))
             elif selected_ac:
                 query = """
-                    SELECT SUM("tdp2014") as "2014_tdp", SUM("ysrcp2014") as "2014_ycp", SUM("tdp_ycp_diff2014") as "2014_tdpmajority", SUM("tdp2019") as "2019_tdp", SUM("ysrcp2019") as "2019_ycp", SUM("tdp_ycp_diff2019") as "2019_tdp_majority"
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
-                    WHERE ac_code = %s
+                    WHERE ac_code = %s;
                 """
                 cursor.execute(query, (selected_ac, ))
 
@@ -3124,6 +3182,50 @@ def generate_pie_chart(data):
         pie_chart_figure.update_traces(hole=0.3)
 
     return pie_chart_figure
+
+
+def getVoterCasteEstimated2024Count(selected_pc, selected_ac, selected_mandal, selected_polling_village):
+    conn = None
+    cursor = None
+    try:
+        conn = get_database_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT SUM(groupcount) 
+            FROM ap_age_group_counts_jan24 
+            WHERE 1=1
+        """
+
+        params = []
+
+        if selected_pc:
+            query += " AND pc_number = %s"
+            params.append(selected_pc)
+        if selected_ac:
+            query += " AND assembly_number = %s"
+            params.append(selected_ac)
+        if selected_mandal:
+            selected_mandal = selected_mandal[0] if selected_mandal else None
+            query += " AND mandal = %s"
+            params.append(selected_mandal)
+        if selected_polling_village:
+            selected_polling_village = selected_polling_village[0] if selected_polling_village else None
+            query += " AND village_or_area_name = %s"
+            params.append(selected_polling_village)
+
+        cursor.execute(query, params)
+
+        # Fetch the result
+        total_estimated_count = cursor.fetchone()[0]
+        return total_estimated_count
+    except Exception as e:
+        print("Error:", e)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 if __name__ == '__main__':
