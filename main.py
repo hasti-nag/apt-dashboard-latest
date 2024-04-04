@@ -9,6 +9,7 @@ from dash import dcc, State
 from dash.dependencies import Input, Output
 from flask import Flask, request, session, redirect, url_for, render_template, send_from_directory
 from dash import html
+from decimal import Decimal
 
 from plotly.subplots import make_subplots
 
@@ -56,6 +57,7 @@ def authenticate():
     if user and user[2] == password:  # Assuming the password is in the third column
         session['logged_in'] = True
         session['username'] = username
+        session['role'] = user[3]
         return redirect(url_for('dashboard'))
     else:
         return render_template('login.html', error='Invalid username or password')
@@ -88,6 +90,7 @@ def polling_data_analysis():
 def logout():
     session.pop('logged_in', None)
     session.pop('username', None)
+    session.pop('role', None)
     return redirect(url_for('login'))
 
 
@@ -355,14 +358,21 @@ def update_welcome_message(pathname):
 def update_caste_options(selected_caste):
     conn = get_database_connection()
     cursor = conn.cursor()
-
-    # Fetch all distinct castes from the database
-    query = """SELECT DISTINCT caste_id, caste FROM BLI WHERE caste NOT IN ('Dead', 'Deleted', 'Not Traced') ORDER BY caste;"""
-    cursor.execute(query)
-    caste_options = [{'label': caste, 'value': caste_id} for caste_id, caste in cursor.fetchall()]
-    caste_options.insert(0, {'label': 'All', 'value': 'casteall'})
-    cursor.close()
-    conn.close()
+    if session.get('role') == 'user':
+        query = """SELECT DISTINCT caste_id, caste FROM BLI WHERE ac_no=79 AND caste NOT IN ('Dead', 'Deleted', 'Not Traced') ORDER BY caste;"""
+        cursor.execute(query)
+        caste_options = [{'label': caste, 'value': caste_id} for caste_id, caste in cursor.fetchall()]
+        caste_options.insert(0, {'label': 'All', 'value': 'casteall'})
+        cursor.close()
+        conn.close()
+    else:
+        # Fetch all distinct castes from the database
+        query = """SELECT DISTINCT caste_id, caste FROM BLI WHERE caste NOT IN ('Dead', 'Deleted', 'Not Traced') ORDER BY caste;"""
+        cursor.execute(query)
+        caste_options = [{'label': caste, 'value': caste_id} for caste_id, caste in cursor.fetchall()]
+        caste_options.insert(0, {'label': 'All', 'value': 'casteall'})
+        cursor.close()
+        conn.close()
 
     return caste_options
 
@@ -375,16 +385,20 @@ def update_caste_options(selected_caste):
 def update_district_options(selected_district):
     conn = get_database_connection()
     cursor = conn.cursor()
+    if session.get('role') == 'user':
+        query = """SELECT DISTINCT district_code, district_name FROM BLI WHERE district_code = 6 ORDER BY district_name;"""
+        cursor.execute(query)
+        district_options = [{'label': district, 'value': district_code} for district_code, district in cursor.fetchall()]
+    else:
+        # Fetch all distinct districts from the database
+        query = """SELECT DISTINCT district_code, district_name FROM BLI ORDER BY district_name;"""
+        cursor.execute(query)
+        district_options = [{'label': district, 'value': district_code} for district_code, district in cursor.fetchall()]
 
-    # Fetch all distinct districts from the database
-    query = """SELECT DISTINCT district_code, district_name FROM BLI ORDER BY district_name;"""
-    cursor.execute(query)
-    district_options = [{'label': district, 'value': district_code} for district_code, district in cursor.fetchall()]
+        district_options.insert(0, {'label': 'All', 'value': 'districtall'})
 
-    district_options.insert(0, {'label': 'All', 'value': 'districtall'})
-
-    cursor.close()
-    conn.close()
+        cursor.close()
+        conn.close()
 
     return district_options
 
@@ -399,26 +413,37 @@ def update_pc_options(selected_district):
     cursor = conn.cursor()
     if selected_district and selected_district != 'districtall':
         # Fetch all distinct pcs from the database
-        query = """SELECT DISTINCT pc_code, pc_name FROM BLI WHERE district_code = %s ORDER BY pc_name;"""
+        if session.get('role') == 'user':
+            query = """SELECT DISTINCT pc_code, pc_name FROM BLI WHERE district_code = %s AND pc_code = 29 ORDER BY pc_name;"""
+            cursor.execute(query, (selected_district,))
+            pc_options = [{'label': pc_name, 'value': pc_code} for pc_code, pc_name in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        else:
+            query = """SELECT DISTINCT pc_code, pc_name FROM BLI WHERE district_code = %s ORDER BY pc_name;"""
+            cursor.execute(query, (selected_district,))
+            pc_options = [{'label': pc_name, 'value': pc_code} for pc_code, pc_name in cursor.fetchall()]
 
-        cursor.execute(query, (selected_district,))
-        pc_options = [{'label': pc_name, 'value': pc_code} for pc_code, pc_name in cursor.fetchall()]
+            pc_options.insert(0, {'label': 'All', 'value': 'pcall'})
 
-        pc_options.insert(0, {'label': 'All', 'value': 'pcall'})
-
-        cursor.close()
-        conn.close()
+            cursor.close()
+            conn.close()
     else:
-        # Fetch all distinct pcs from the database
-        query = """SELECT DISTINCT pc_code, pc_name FROM BLI ORDER BY pc_name;"""
+        if session.get('role') == 'user':
+            query = """SELECT DISTINCT pc_code, pc_name FROM BLI WHERE pc_code = 29 ORDER BY pc_name;"""
+            cursor.execute(query)
+            pc_options = [{'label': pc_name, 'value': pc_code} for pc_code, pc_name in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        else:
+            # Fetch all distinct pcs from the database
+            query = """SELECT DISTINCT pc_code, pc_name FROM BLI ORDER BY pc_name;"""
+            cursor.execute(query)
+            pc_options = [{'label': pc_name, 'value': pc_code} for pc_code, pc_name in cursor.fetchall()]
+            pc_options.insert(0, {'label': 'All', 'value': 'pcall'})
 
-        cursor.execute(query)
-        pc_options = [{'label': pc_name, 'value': pc_code} for pc_code, pc_name in cursor.fetchall()]
-
-        pc_options.insert(0, {'label': 'All', 'value': 'pcall'})
-
-        cursor.close()
-        conn.close()
+            cursor.close()
+            conn.close()
 
     return pc_options
 
@@ -434,24 +459,35 @@ def update_ac_options(selected_district, selected_pc):
     cursor = conn.cursor()
     if selected_district and selected_district != 'districtall' and selected_pc and selected_pc != 'pcall':
         # Fetch all distinct acs from the database
-        query = """SELECT DISTINCT ac_no, ac_name FROM BLI WHERE district_code = %s AND pc_code = %s ORDER BY ac_name;"""
+        if session.get('role') == 'user':
+            query = """SELECT DISTINCT ac_no, ac_name FROM BLI WHERE district_code = %s AND pc_code = %s AND ac_no = 79 ORDER BY ac_name;"""
+            cursor.execute(query, (selected_district, selected_pc))
+            ac_options = [{'label': ac_name, 'value': ac_no} for ac_no, ac_name in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        else:
+            query = """SELECT DISTINCT ac_no, ac_name FROM BLI WHERE district_code = %s AND pc_code = %s ORDER BY ac_name;"""
+            cursor.execute(query, (selected_district, selected_pc))
+            ac_options = [{'label': ac_name, 'value': ac_no} for ac_no, ac_name in cursor.fetchall()]
 
-        cursor.execute(query, (selected_district, selected_pc))
-        ac_options = [{'label': ac_name, 'value': ac_no} for ac_no, ac_name in cursor.fetchall()]
-
-        ac_options.insert(0, {'label': 'All', 'value': 'acall'})
-        cursor.close()
-        conn.close()
+            ac_options.insert(0, {'label': 'All', 'value': 'acall'})
+            cursor.close()
+            conn.close()
     else:
-        # Fetch all distinct acs from the database
-        query = """SELECT DISTINCT ac_no, ac_name FROM BLI ORDER BY ac_name;"""
-
-        cursor.execute(query)
-        ac_options = [{'label': ac_name, 'value': ac_no} for ac_no, ac_name in cursor.fetchall()]
-
-        ac_options.insert(0, {'label': 'All', 'value': 'acall'})
-        cursor.close()
-        conn.close()
+        if session.get('role') == 'user':
+            query = """SELECT DISTINCT ac_no, ac_name FROM BLI WHERE ac_no = 79 ORDER BY ac_name;"""
+            cursor.execute(query)
+            ac_options = [{'label': ac_name, 'value': ac_no} for ac_no, ac_name in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        else:
+            # Fetch all distinct acs from the database
+            query = """SELECT DISTINCT ac_no, ac_name FROM BLI ORDER BY ac_name;"""
+            cursor.execute(query)
+            ac_options = [{'label': ac_name, 'value': ac_no} for ac_no, ac_name in cursor.fetchall()]
+            ac_options.insert(0, {'label': 'All', 'value': 'acall'})
+            cursor.close()
+            conn.close()
 
     return ac_options
 
@@ -573,23 +609,34 @@ def update_sub_caste_options(selected_caste):
         return [{'label': 'Please Select a Caste', 'value': None}]
 
     elif selected_caste == 'casteall':
-        query = """SELECT DISTINCT sub_caste, subcaste FROM BLI ORDER BY subcaste;"""
 
-        cursor.execute(query)
-        sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
-
-        cursor.close()
-        conn.close()
+        if session.get('role') == 'user':
+            query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE ac_no = 79 ORDER BY subcaste;"""
+            cursor.execute(query)
+            sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        else:
+            query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE ORDER BY subcaste;"""
+            cursor.execute(query)
+            sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
+            cursor.close()
+            conn.close()
         return sub_caste_options
     else:
-        # Fetch all distinct districts from the database
-        query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE caste_id = %s ORDER BY subcaste;"""
-
-        cursor.execute(query, (selected_caste,))
-        sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
-
-        cursor.close()
-        conn.close()
+        if session.get('role') == 'user':
+            query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE ac_no = 79 AND caste_id = %s ORDER BY subcaste;"""
+            cursor.execute(query, (selected_caste,))
+            sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        else:
+            # Fetch all distinct districts from the database
+            query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE caste_id = %s ORDER BY subcaste;"""
+            cursor.execute(query, (selected_caste,))
+            sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
+            cursor.close()
+            conn.close()
 
     return sub_caste_options
 
@@ -710,25 +757,43 @@ def generate_title(selected_caste, selected_district, selected_sub_caste, select
 
     if selected_caste is None:
         labels.append('Caste Breakup')
-        values.append('<b style="color:red;">Entire AP</b>')
-
+        if session.get('role') == 'user':
+            values.append('<b style="color:red;">Vijayawada West</b>')
+        else:
+            values.append('<b style="color:red;">Entire AP</b>')
     if selected_caste:
         labels.append('Caste Breakup</b>')
-        values.append('<b style="color:red;">Entire AP</b>')
+        if session.get('role') == 'user':
+            values.append('<b style="color:red;">Vijayawada West</b>')
+        else:
+            values.append('<b style="color:red;">Entire AP</b>')
 
     if selected_district:
-        # Remove "Entire AP" if district is selected
-        if '<b style="color:red;">Entire AP</b>' in values:
-            index = values.index('<b style="color:red;">Entire AP</b>')
-            del values[index]
-            del labels[index]
-        labels.append('Caste Breakup')
-        values.append(f'')
+        if session.get('role') == 'user':
+            # Remove "Entire AP" if district is selected
+            if '<b style="color:red;">Vijayawada West</b>' in values:
+                index = values.index('<b style="color:red;">Vijayawada West</b>')
+                del values[index]
+                del labels[index]
+            labels.append('Caste Breakup')
+            values.append(f'')
+            # Append "Entire AP" if no other value is present
+            if not any("Vijayawada West" in value for value in values):
+                labels.append('District')
+                values.append(f'<b style="color:red;">{selected_district_label}</b>')
+        else:
+            # Remove "Entire AP" if district is selected
+            if '<b style="color:red;">Entire AP</b>' in values:
+                index = values.index('<b style="color:red;">Entire AP</b>')
+                del values[index]
+                del labels[index]
+            labels.append('Caste Breakup')
+            values.append(f'')
 
-        # Append "Entire AP" if no other value is present
-        if not any("Entire AP" in value for value in values):
-            labels.append('District')
-            values.append(f'<b style="color:red;">{selected_district_label}</b>')
+            # Append "Entire AP" if no other value is present
+            if not any("Entire AP" in value for value in values):
+                labels.append('District')
+                values.append(f'<b style="color:red;">{selected_district_label}</b>')
 
     if selected_pc:
         labels.append('Parliamentary Constituency')
@@ -779,32 +844,35 @@ def get_data(selected_caste, selected_district, selected_sub_caste, selected_pc,
     # Add filters based on selected criteria
     filters = []
     params = []
+    if session.get('role') == 'user':
+        # If the session role is 'user', add the condition for ac_no = 79
+        base_query += " AND ac_no = 79"
 
     if selected_district and selected_district != "districtall":
-        filters.append("AND district_code = %s")
+        filters.append(" AND district_code = %s")
         params.append(selected_district)
 
     if selected_pc and selected_pc != "pcall":
-        filters.append("AND pc_code = %s")
+        filters.append(" AND pc_code = %s")
         params.append(selected_pc)
 
-    if selected_ac and selected_ac != "acall":
-        filters.append("AND ac_no = %s")
+    if selected_ac and selected_ac != "acall" and session.get('role') != 'user':
+        filters.append(" AND ac_no = %s")
         params.append(selected_ac)
 
     if selected_mandal:
-        filters.append("AND mandal_id = %s")
+        filters.append(" AND mandal_id = %s")
         params.append(selected_mandal)
 
     if selected_village:
-        filters.append("AND village_id = %s")
+        filters.append(" AND village_id = %s")
         params.append(selected_village)
 
     if selected_booth:
-        filters.append("AND booth_id = %s")
+        filters.append(" AND booth_id = %s")
         params.append(selected_booth)
 
-    # Define selected fields and group by clause based on selections
+    # Define selectedfields and group by clause based on selections
     selected_fields = "caste, SUM(grand_total) as total_grand_total"
     group_by_clause = "caste"
 
@@ -860,7 +928,9 @@ def get_data(selected_caste, selected_district, selected_sub_caste, selected_pc,
 def update_charts(click_data, selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal,
                   selected_village, selected_booth, caste_option, sub_caste_option, district_option, pc_option, ac_option, mandal_option, village_option, booth_option, total_voters):
 
-    #getVoterCasteEstimated2024Count()
+    #getVoterCasteEstimated2024Count(selected_caste, selected_sub_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth,
+    #                                caste_option, sub_caste_option, district_option,
+    #                                pc_option, ac_option, mandal_option, village_option, booth_option)
     # Determine if the total count should be taken from the pie chart or calculated within the function
     voter_sub_caste_chart_figure = update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_district,
                                                                 selected_pc, selected_ac, selected_mandal, selected_village, selected_booth,
@@ -1051,7 +1121,7 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
         # Calculate total number of voters and format it to include in the table
         # total_voters_str = f'Total Voters: {df["NumVoters"].sum()}'
         # total_ap_voters_str = f'Total AP Voters: {total_voters}'
-        total_voters_str = f'<b>Total {total_voters_caste}: {df["NumVoters"].sum()}</b>'
+        total_voters_str = f'<b>Total: {df["NumVoters"].sum()}</b>'
         total_ap_voters_str = f'<b>{voters_total_title} Voters: {total_voters}</b>'
         # Create a new row to display the totals
         total_row = pd.DataFrame({header_label: [''],
@@ -1067,7 +1137,7 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
 
         # Create a table without the sequence numbers
         fig = go.Figure(data=[go.Table(
-            header=dict(values=[f'<b>{header_label}</b>', '<b>NumVoters</b>', '<b>Percentage</b>',
+            header=dict(values=[f'<b>{header_label}</b>', '<b>Num of Voters</b>', '<b>Percentage</b>',
                                 '<b>2024 Estimated</b>'],
                         align=['left', 'center', 'center'],
                         font=dict(size=12),  # Adjust header font size
@@ -1149,6 +1219,8 @@ def getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_distri
     # Add filters based on selected criteria
     filters = []
     params = []
+    if session.get('role') == 'user':
+        filters.append("ac_no = 79")
 
     if selected_district and selected_district != 'districtall':
         filters.append("district_code = %s")
@@ -1171,7 +1243,7 @@ def getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_distri
         params.append(selected_village)
 
     if selected_caste and selected_caste != 'casteall':
-        filters.append("caste = %s")
+        filters.append("caste_id = %s")
         params.append(selected_caste)
     else:
         filters.append("caste NOT IN ('Dead', 'Deleted', 'Not Traced')")
@@ -1822,7 +1894,8 @@ def get_sub_caste_data(selected_district, selected_pc, selected_ac, selected_man
     # Add filters based on selected criteria
     filters = []
     params = []
-
+    if session.get('role') == 'user':
+        filters.append("ac_no = 79")
     if selected_district and selected_district != 'districtall':
         filters.append("district_code = %s")
         params.append(selected_district)
@@ -1831,7 +1904,7 @@ def get_sub_caste_data(selected_district, selected_pc, selected_ac, selected_man
         filters.append("pc_code = %s")
         params.append(selected_pc)
 
-    if selected_ac and selected_ac != 'acall':
+    if selected_ac and selected_ac != 'acall' and session.get('role') != 'user':
         filters.append("ac_no = %s")
         params.append(selected_ac)
 
@@ -1853,7 +1926,7 @@ def get_sub_caste_data(selected_district, selected_pc, selected_ac, selected_man
 
     where_clause = " AND ".join(filters)
     final_query = base_query.format(where_clause)
-
+    print(final_query)
     cursor.execute(final_query, tuple(params))
     data1 = cursor.fetchall()
 
@@ -2167,15 +2240,21 @@ def reset_dropdown_values(n_clicks):
 def update_polling_assembly_constituencies(selected_parliamentary_constituency):
     conn = get_database_connection()
     cursor = conn.cursor()
-
-    # Fetch all distinct assembly constituencies from the database for the selected parliamentary constituency
-    query = """SELECT DISTINCT ac_code,assembly FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = %s ORDER BY assembly;"""
-    cursor.execute(query, (selected_parliamentary_constituency,))
-    polling_ac_options = [{'label': f'{assembly} ({ac_code})', 'value': ac_code} for ac_code, assembly in
-                          cursor.fetchall()]
-
-    cursor.close()
-    conn.close()
+    if session.get('role') == 'user':
+        query = """SELECT DISTINCT ac_code,assembly FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = %s AND ac_code=79 ORDER BY parliament;"""
+        cursor.execute(query, (selected_parliamentary_constituency,))
+        polling_ac_options = [{'label': f'{parliament} ({pc_code})', 'value': pc_code} for pc_code, parliament in
+                              cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    else:
+        # Fetch all distinct assembly constituencies from the database for the selected parliamentary constituency
+        query = """SELECT DISTINCT ac_code,assembly FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = %s ORDER BY assembly;"""
+        cursor.execute(query, (selected_parliamentary_constituency,))
+        polling_ac_options = [{'label': f'{assembly} ({ac_code})', 'value': ac_code} for ac_code, assembly in
+                              cursor.fetchall()]
+        cursor.close()
+        conn.close()
 
     return polling_ac_options
 
@@ -2188,15 +2267,21 @@ def update_polling_assembly_constituencies(selected_parliamentary_constituency):
 def update_polling_parliamentary_constituencies(selected_parliamentary_constituency):
     conn = get_database_connection()
     cursor = conn.cursor()
-
-    # Fetch all distinct parliamentary constituencies from the database
-    query = """SELECT DISTINCT pc_code,parliament FROM apt201419_polling_data_all_constituencies_ ORDER BY parliament;"""
-    cursor.execute(query)
-    polling_pc_options = [{'label': f'{parliament} ({pc_code})', 'value': pc_code} for pc_code, parliament in
-                          cursor.fetchall()]
-
-    cursor.close()
-    conn.close()
+    if session.get('role') == 'user':
+        query = """SELECT DISTINCT pc_code,parliament FROM apt201419_polling_data_all_constituencies_ WHERE pc_code = 29 ORDER BY parliament;"""
+        cursor.execute(query)
+        polling_pc_options = [{'label': f'{parliament} ({pc_code})', 'value': pc_code} for pc_code, parliament in
+                              cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    else:
+        # Fetch all distinct parliamentary constituencies from the database
+        query = """SELECT DISTINCT pc_code,parliament FROM apt201419_polling_data_all_constituencies_ ORDER BY parliament;"""
+        cursor.execute(query)
+        polling_pc_options = [{'label': f'{parliament} ({pc_code})', 'value': pc_code} for pc_code, parliament in
+                              cursor.fetchall()]
+        cursor.close()
+        conn.close()
 
     return polling_pc_options
 
@@ -2215,7 +2300,6 @@ def update_polling_mandal(selected_polling_constituency, selected_parliamentary_
     cursor.execute(query, (selected_parliamentary_const, selected_polling_constituency))
     polling_mandal_options = [{'label': mandalortown, 'value': mandalortown} for mandalortown in
                               cursor.fetchall()]
-    print(polling_mandal_options)
     cursor.close()
     conn.close()
 
@@ -2708,7 +2792,6 @@ def get_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, select
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s;
                 """
-                print(query)
                 cursor.execute(query, (selected_pc, ))
             elif selected_ac:
                 query = """
@@ -2955,13 +3038,17 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
         lambda x: '{:.2f}%'.format(x))
     df['TotalPercentage'] = df['TotalPercentage'].astype(str).str.replace('%', '')
     df['TotalPercentage'] = df['TotalPercentage'].astype(float)
+    if estimated_2024_total:
+        estimated_2024_total = float(estimated_2024_total)
+    else:
+        estimated_2024_total = 0
     df['2024 Estimated'] = (estimated_2024_total / 100) * df['TotalPercentage']
     df['2024 Estimated'] = df['2024 Estimated'].astype(int).apply(lambda x: '{:d}'.format(x))
     # Calculate total number of voters and format it to include in the table
     total_voters_str = f'<b>Total {total_voters_caste}: {df["NumVoters"].sum()}</b>'
     total_ap_voters_str = f'<b>{voters_total_title} Voters: {total_polling_voters}</b>'
     # voters_caste_perc = f'<b>{voters_caste_perc}: Caste</b>'
-    estimated_total = f'<b>Total Estimated 2024: {estimated_2024_total}</b>'
+    estimated_total = f'<b>Total Estimated 2024: {int(estimated_2024_total) if estimated_2024_total == int(estimated_2024_total) else estimated_2024_total}</b>'
 
     # Create a new row to display the totals
     total_row = pd.DataFrame({'Sub Caste': [''],
