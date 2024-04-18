@@ -95,14 +95,14 @@ def logout():
 
 
 # Update the styling for dropdown components
-dropdown_style = {'width': '80%'}
+dropdown_style = {'width': '100%'}
 # Define the layout of the dashboard
 dash_app.layout = html.Div(style={'backgroundColor': '#f2f2f2'}, children=[
     dcc.Location(id='dash-url', refresh=False),
     html.Div(id='total-voters', style={'display': 'none'}),
     dbc.Container([
         dbc.Row([
-            dbc.Col(html.H1("Voter Statistics Dashboard", className="mb-2", style={'color': 'blue'})),
+            dbc.Col(html.H1("Voter Statistics Dashboard", className="mb-2", style={'color': 'blue', 'margin-top': '25px'})),
             dbc.Col(html.Div(id='welcome-message', children=[], style={'text-align': 'right', 'font-size': '18px'}))
         ]),
         dbc.Row([
@@ -214,11 +214,11 @@ dash_app.layout = html.Div(style={'backgroundColor': '#f2f2f2'}, children=[
         dbc.Row([
             dbc.Col([
                 html.H2("2019 Voter Caste Breakdown", className="text-center"),  # Title for the pie chart
-                dcc.Graph(id='voter-pie-chart', className="mt-4", style={'height': '550px'}),
+                dcc.Graph(id='voter-pie-chart', className="mt-4", style={'height': '570px'}),
             ], width={"size": 12, "order": "first", "offset": 0}, lg=4, md=12, sm=12, xs=12),
             dbc.Col([
                 html.H2("2019 Voter Sub-Caste Breakdown", className="text-center"),  # Title for the sub-caste breakdown
-                dcc.Graph(id='voter-sub-caste-chart', className="mt-4", style={'height': '550px'}),
+                dcc.Graph(id='voter-sub-caste-chart', className="mt-4", style={'height': '570px'}),
             ], width={"size": 12, "order": "last", "offset": 0}, lg=8, md=12, sm=12, xs=12),
         ], className="mb-4"),
     ], fluid=True)
@@ -502,26 +502,67 @@ def update_ac_options(selected_district, selected_pc):
 def update_mandal_options(selected_district, selected_pc, selected_ac):
     conn = get_database_connection()
     cursor = conn.cursor()
-    if selected_district and selected_district != 'districtall' and selected_pc and selected_pc != 'pcall' and selected_ac != 'acall':
-        # Fetch all distinct acs from the database
-        query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE district_code = %s AND pc_code = %s AND ac_no = %s ORDER BY mandal_name;"""
 
-        cursor.execute(query, (selected_district, selected_pc, selected_ac))
-        mandal_options = [{'label': mandal_name, 'value': mandal_id} for mandal_id, mandal_name in cursor.fetchall()]
+    if selected_district != 'districtall' and selected_pc != 'pcall' and selected_ac == 'acall':
+        # If district is not 'districtall' and only ac is 'acall', fetch mandals based on selected district and default pc
+        query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE district_code = %s AND pc_code = %s ORDER BY mandal_name;"""
+        cursor.execute(query, (selected_district, selected_pc))
 
-        cursor.close()
-        conn.close()
-    elif selected_ac != 'acall':
-        # Fetch all distinct acs from the database
+    elif selected_district != 'districtall' and selected_pc == 'pcall' and selected_ac == 'acall':
+        # If district is not 'districtall' and pc is 'pcall' and ac is 'acall', fetch mandals based on selected district only
+        query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE district_code = %s ORDER BY mandal_name;"""
+        cursor.execute(query, (selected_district,))
+
+    elif selected_district != 'districtall' and selected_pc == 'pcall' and selected_ac != 'acall':
+        # If district is not 'districtall' and pc is 'pcall' and ac is 'acall', fetch mandals based on selected district only
+        query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE district_code = %s AND ac_no = %s ORDER BY mandal_name;"""
+        cursor.execute(query, (selected_district, selected_ac))
+
+    elif selected_district == 'districtall' and selected_pc != 'pcall' and selected_ac != 'acall':
+        # If district is 'districtall' and pc is not 'pcall' and ac is not 'acall', fetch mandals based on selected pc and ac
+        query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE pc_code = %s AND ac_no = %s ORDER BY mandal_name;"""
+        cursor.execute(query, (selected_pc, selected_ac))
+
+    elif selected_district == 'districtall' and selected_pc == 'pcall' and selected_ac != 'acall':
+        # If district is 'districtall' and pc is not 'pcall' and ac is not 'acall', fetch mandals based on selected pc and ac
         query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE ac_no = %s ORDER BY mandal_name;"""
-
         cursor.execute(query, (selected_ac, ))
-        mandal_options = [{'label': mandal_name, 'value': mandal_id} for mandal_id, mandal_name in cursor.fetchall()]
 
-        cursor.close()
-        conn.close()
+    elif selected_district == 'districtall' and selected_pc != 'pcall' and selected_ac == 'acall':
+        # If district is 'districtall' and pc is not 'pcall' and ac is not 'acall', fetch mandals based on selected pc and ac
+        query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE pc_code = %s ORDER BY mandal_name;"""
+        cursor.execute(query, (selected_pc, ))
     else:
-        mandal_options = []
+        query_conditions = []
+        query_parameters = []
+
+        if selected_district != 'districtall':
+            query_conditions.append("district_code = %s")
+            query_parameters.append(selected_district)
+
+        if selected_pc != 'pcall':
+            query_conditions.append("pc_code = %s")
+            query_parameters.append(selected_pc)
+
+        if selected_ac != 'acall':
+            query_conditions.append("ac_no = %s")
+            query_parameters.append(selected_ac)
+
+        if not query_conditions:
+            # Fetch all mandals if no specific filters are selected
+            query = """SELECT DISTINCT mandal_id, mandal_name FROM BLI ORDER BY mandal_name;"""
+            cursor.execute(query)
+        else:
+            # Construct the SQL query based on selected filters
+            where_clause = " AND ".join(query_conditions)
+            query = f"""SELECT DISTINCT mandal_id, mandal_name FROM BLI WHERE {where_clause} ORDER BY mandal_name;"""
+            print(query)
+            cursor.execute(query, tuple(query_parameters))
+
+    mandal_options = [{'label': mandal_name, 'value': mandal_id} for mandal_id, mandal_name in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
 
     return mandal_options
 
@@ -617,7 +658,7 @@ def update_sub_caste_options(selected_caste):
             cursor.close()
             conn.close()
         else:
-            query = """SELECT DISTINCT sub_caste, subcaste FROM BLI WHERE ORDER BY subcaste;"""
+            query = """SELECT DISTINCT sub_caste, subcaste FROM BLI ORDER BY subcaste;"""
             cursor.execute(query)
             sub_caste_options = [{'label': subcaste, 'value': sub_caste} for sub_caste, subcaste in cursor.fetchall()]
             cursor.close()
@@ -709,7 +750,7 @@ def update_voter_pie_chart(selected_caste, selected_district, selected_sub_caste
     if data:
         # Add pie chart trace
         fig.add_trace(go.Pie(labels=df['Caste'], values=df['NumVoters'], marker=dict(colors=df['Color']),
-                             textinfo='label+percent+value'))
+                             textinfo='label+percent+value', textfont=dict(size=20)))
 
         # Calculate total count
         total_count = sum(df['NumVoters'])
@@ -719,10 +760,10 @@ def update_voter_pie_chart(selected_caste, selected_district, selected_sub_caste
             annotations=[
                 dict(
                     text=f'<b>Total Voters: {total_count}<b>',
-                    x=0.3,
+                    x=0.6,
                     y=1.2,  # Adjust the position as needed
                     showarrow=False,
-                    font=dict(family="Arial", size=14, color="RebeccaPurple"),
+                    font=dict(family="Arial", size=13, color="RebeccaPurple"),
                 )
             ],
             title=dict(
@@ -730,6 +771,7 @@ def update_voter_pie_chart(selected_caste, selected_district, selected_sub_caste
                 font=dict(family="Arial", size=12, color="black")
             )
         )
+        #fig.data[0].domain = {'x': [0, 1], 'y': [0.25, 0.75]}
         fig.update_traces(hole=0.2)
         # Serialize figures to JSON format
     return fig, total_count
@@ -981,7 +1023,8 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
     if selected_sub_caste and selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
         data = get_booth_data(selected_sub_caste, selected_caste, selected_district, selected_pc, selected_ac,
                               selected_mandal, selected_village)
-        title = f'<b style="color:red;">SubCaste Breakup</b> For Sub-Caste: <b style="color:red;">{selected_sub_caste_label}</b> Villages: <b style="color:red;">{selected_village_label}</b>'
+        title = f'<b style="color:red;">SubCaste Breakup</b> For Sub-Caste: <b style="color:red;">{selected_sub_caste_label}</b> ' \
+                f'<br>Villages: <b style="color:red;">{selected_village_label}</b>'
         header_label = 'Booths'
         voters_total_title = 'Booths'
         total_voters_caste = selected_sub_caste_label
@@ -1043,21 +1086,21 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
     elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village and selected_booth:
         data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, selected_booth)
         title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
-                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b> Mandal: <b style="color:red;">{selected_mandal_label}</b>' \
+                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b><br> Mandal: <b style="color:red;">{selected_mandal_label}</b>' \
                 f' Village: <b style="color:red;">{selected_village_label}</b> Booth: <b style="color:red;">{selected_booth_label}</b>'
         header_label = 'Booths'
         voters_total_title = 'Sub-Caste'
     elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal and selected_village:
         data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, selected_village, None)
         title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
-                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b> Mandal: <b style="color:red;">{selected_mandal_label}</b>' \
+                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b><br> Mandal: <b style="color:red;">{selected_mandal_label}</b>' \
                 f' Village: <b style="color:red;">{selected_village_label}</b>'
         header_label = 'Villages'
         voters_total_title = 'Sub-Caste'
     elif selected_caste and selected_district and selected_pc and selected_ac and selected_mandal:
         data = getSub_Caste_data_without_sub_caste_selected(selected_caste, selected_district, selected_pc, selected_ac, selected_mandal, None, None)
         title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}</b> District: <b style="color:red;">{selected_district_label}</b>' \
-                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b> Mandal: <b style="color:red;">{selected_mandal_label}</b>'
+                f'</b> PC: <b style="color:red;">{selected_pc_label}</b> AC: <b style="color:red;">{selected_ac_label}</b><br> Mandal: <b style="color:red;">{selected_mandal_label}</b>'
         header_label = 'Mandals'
         voters_total_title = 'Sub-Caste'
     elif selected_caste and selected_district and selected_pc and selected_ac:
@@ -1096,7 +1139,10 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
             voters_total_title = 'Sub-Caste'
     elif selected_caste:
         data = getSub_Caste_data_without_sub_caste_selected(selected_caste, None, None, None, None, None, None)
-        title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}, Entire AP</b>'
+        if session.get('role') == 'user':
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}, Vijayawada West</b>'
+        else:
+            title = f'<b style="color:red;">SubCaste Breakup</b> For Caste: <b style="color:red;">{selected_caste_label}, Entire AP</b>'
         header_label = 'Sub-Caste'
         voters_total_title = 'All'
         total_voters_caste = selected_sub_caste_label
@@ -1125,7 +1171,7 @@ def update_voter_sub_caste_chart(selected_caste, selected_sub_caste, selected_di
         total_ap_voters_str = f'<b>{voters_total_title} Voters: {total_voters}</b>'
         # Create a new row to display the totals
         total_row = pd.DataFrame({header_label: [''],
-                                  'NumVoters': [total_voters_str],
+                                  'NumVoters': [''],
                                   'Percentage': [''],
                                   'TotalPercentage': [total_ap_voters_str]})
 
@@ -1741,7 +1787,7 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
         voters_total_title = 'Booth'
         total_voters_caste = clicked_caste
         title = f'<b style="color:red;">SubCaste Breakup</b> for District: <b style="color:red;">{selected_district_label}</b>, PC: <b style="color:red;">{selected_pc_label}</b>,' \
-                f' AC: <b style="color:red;">{selected_ac_label}</b>, Mandal: <b style="color:red;">{selected_mandal_label}</b>, Village: <b style="color:red;">{selected_village_label}</b>, Booth: <b style="color:red;">{selected_booth_label}</b>' \
+                f' AC: <b style="color:red;">{selected_ac_label}</b>, <br>Mandal: <b style="color:red;">{selected_mandal_label}</b>, Village: <b style="color:red;">{selected_village_label}</b>, Booth: <b style="color:red;">{selected_booth_label}</b>' \
                 f' Caste: <b style="color:red;">{clicked_caste}</b>'
     elif selected_district and selected_pc and selected_ac and selected_mandal and selected_village and clicked_caste:
         # Display sub_caste-wise count for the selected district,pc,ac,mandal,village and caste
@@ -1751,7 +1797,7 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
         voters_total_title = 'Village'
         total_voters_caste = clicked_caste
         title = f'<b style="color:red;">SubCaste Breakup</b> for District: <b style="color:red;">{selected_district_label}</b>, PC: <b style="color:red;">{selected_pc_label}</b>,' \
-                f' AC: <b style="color:red;">{selected_ac_label}</b>, Mandal: <b style="color:red;">{selected_mandal_label}</b>, Village: <b style="color:red;">{selected_village_label}</b>,' \
+                f' AC: <b style="color:red;">{selected_ac_label}</b>, <br>Mandal: <b style="color:red;">{selected_mandal_label}</b>, Village: <b style="color:red;">{selected_village_label}</b>,' \
                 f' Caste: <b style="color:red;">{clicked_caste}</b>'
     elif selected_district and selected_pc and selected_ac and selected_mandal and clicked_caste:
         # Display sub_caste-wise count for the selected district,pc,ac,mandal and caste
@@ -1761,7 +1807,7 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
         voters_total_title = 'Mandal'
         total_voters_caste = clicked_caste
         title = f'<b style="color:red;">SubCaste Breakup</b> for District: <b style="color:red;">{selected_district_label}</b>, PC: <b style="color:red;">{selected_pc_label}</b>,' \
-                f' AC: <b style="color:red;">{selected_ac_label}</b>, Mandal: <b style="color:red;">{selected_mandal_label}</b>, Caste: <b style="color:red;">{clicked_caste}</b>'
+                f' AC: <b style="color:red;">{selected_ac_label}</b>, <br>Mandal: <b style="color:red;">{selected_mandal_label}</b>, Caste: <b style="color:red;">{clicked_caste}</b>'
     elif selected_district and selected_pc and selected_ac and clicked_caste:
         # Display sub_caste-wise count for the selected district,pc,ac,mandal,caste
         data1 = get_sub_caste_data(selected_district, selected_pc, selected_ac, None, None, clicked_caste, None)
@@ -1791,8 +1837,10 @@ def create_sub_caste_graph(clicked_caste, selected_district, selected_pc, select
         data1 = sorted(data1, key=lambda x: x[1], reverse=True)
         voters_total_title = ''
         total_voters_caste = clicked_caste
-        title = f'<b style="color:red;">SubCaste Breakup</b> for Caste: <b style="color:red;">{clicked_caste}, Entire AP</b>'
-
+        if session.get('role') == 'user':
+            title = f'<b style="color:red;">SubCaste Breakup</b> for Caste: <b style="color:red;">{clicked_caste}, Vijayawada West</b>'
+        else:
+            title = f'<b style="color:red;">SubCaste Breakup</b> for Caste: <b style="color:red;">{clicked_caste}, Vijayawada West</b>'
     df = {
         'Sub-Caste': [row[0] for row in sorted(data1, key=lambda x: x[0], reverse=True)],
         'NumVoters': [row[1] for row in sorted(data1, key=lambda x: x[0], reverse=True)]
@@ -1926,7 +1974,6 @@ def get_sub_caste_data(selected_district, selected_pc, selected_ac, selected_man
 
     where_clause = " AND ".join(filters)
     final_query = base_query.format(where_clause)
-    print(final_query)
     cursor.execute(final_query, tuple(params))
     data1 = cursor.fetchall()
 
@@ -1977,7 +2024,7 @@ dash_app1.layout = html.Div(style={'backgroundColor': '#f2f2f2'}, children=[
     html.Div(id='total-polling-voters', style={'display': 'none'}),
     dbc.Container([
         dbc.Row([
-            dbc.Col(html.H1("Polling and Demographic Analysis", className="mb-2", style={'color': 'blue'})),
+            dbc.Col(html.H1("Polling and Demographic Analysis", className="mb-2", style={'color': 'blue', 'margin-top': '25px'})),
             dbc.Col(html.Div(id='welcome-message1', children=[], style={'text-align': 'right', 'font-size': '18px'}))
         ]),
         dbc.Row([
@@ -2057,21 +2104,21 @@ dash_app1.layout = html.Div(style={'backgroundColor': '#f2f2f2'}, children=[
         ], className="mb-4"),
         dbc.Row([
             dbc.Col([
-                html.H5(children=[html.B("Polling Trends")], style={'text-align': 'center'}),
+                html.H5(children=[html.B("Polling Trends")], style={'text-align': 'center', 'color': 'grey'}),
                 dcc.Graph(id='polling-analysis-chart', className="mt-4", style={'height': '400px', 'width': '100%'}),
             ], width={"size": 12, "order": "first", "offset": 0}, lg=6, md=12, sm=12, xs=12),
             dbc.Col([
-                html.H5(children=[html.B("2019 Caste Breakup")], style={'text-align': 'center'}),
+                html.H5(children=[html.B("2019 Caste Breakup")], style={'text-align': 'center', 'color': 'grey'}),
                 dcc.Graph(id='polling-pie-chart', className="mt-4", style={'height': '400px'}),
             ], width={"size": 12, "order": "middle", "offset": 0}, lg=3, md=12, sm=12, xs=12),
             dbc.Col([
-                html.H5(children=[html.B("2024 Age Group Breakup")], style={'text-align': 'center'}),
+                html.H5(children=[html.B("2024 Age Group Breakup")], style={'text-align': 'center', 'color': 'grey'}),
                 dcc.Graph(id='age-group-pie-chart', className="mt-4", style={'height': '400px'}),
             ], width={"size": 12, "order": "last", "offset": 0}, lg=3, md=12, sm=12, xs=12),
         ], ),
         dbc.Row([
             dbc.Col([
-                dcc.Graph(id='sub-caste-polling-chart', className="mt-4", style={'height': '500px'}),
+                dcc.Graph(id='sub-caste-polling-chart', className="mt-4", style={'height': '630px'}),
             ], width={"size": 12, "order": "first", "offset": 0}, lg=12, md=12, sm=12, xs=12),
         ], className="mb-1"),
     ], fluid=True)
@@ -2332,7 +2379,7 @@ def update_polling_village(selected_polling_constituency, selected_parliamentary
 # Callback to update options for polling constituency dropdown
 @dash_app1.callback(
     Output('polling-caste-dropdown', 'options'),
-    [Input('polling-parliamentary-constituency-dropdown', 'value')]
+    [Input('polling-parliamentary-constituency-dropdown', 'value')],
 )
 def update_polling_caste(selected_polling_constituency):
     conn = get_database_connection()
@@ -2382,14 +2429,14 @@ def update_polling_charts(selected_pc, selected_ac, selected_mandal, selected_po
         mandal_str = ', '.join(map(str, selected_mandal)) if selected_mandal else ""
         village_str = ', '.join(map(str, selected_polling_village)) if selected_polling_village else ""
         title = html.Div([
-            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold'}),
-            html.Span(f', AC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold'}),
-            html.Span(f', Mandal: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(mandal_str, style={'color': 'red', 'font-weight': 'bold'}),
-            html.Span(f', Village: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(village_str, style={'color': 'red', 'font-weight': 'bold'})
+            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(f', AC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(f', Mandal: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(mandal_str, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(f', Village: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(village_str, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'})
         ])
         # Update polling pie chart based on selected pc, ac, mandal and village
         pie_chart_fig, total_count = update_pie_chart(selected_pc_label, selected_ac_label, selected_pc, selected_ac,
@@ -2406,12 +2453,12 @@ def update_polling_charts(selected_pc, selected_ac, selected_mandal, selected_po
     elif selected_pc and selected_ac and selected_mandal:
         mandal_str = ', '.join(map(str, selected_mandal)) if selected_mandal else ""
         title = html.Div([
-            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold'}),
-            html.Span(f', AC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold'}),
-            html.Span(f', Mandal: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(mandal_str, style={'color': 'red', 'font-weight': 'bold'})
+            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(f', AC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(f', Mandal: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(mandal_str, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'})
         ])
         # Update polling pie chart based on selected pc, ac, mandal
         pie_chart_fig, total_count = update_pie_chart(selected_pc_label, selected_ac_label, selected_pc, selected_ac,
@@ -2427,10 +2474,10 @@ def update_polling_charts(selected_pc, selected_ac, selected_mandal, selected_po
 
     elif selected_pc and selected_ac:
         title = html.Div([
-            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold'}),
-            html.Span(f', AC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold'})
+            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(f', AC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'})
         ])
         # Update polling pie chart based on selected pc, ac
         pie_chart_fig, total_count = update_pie_chart(selected_pc_label, selected_ac_label, selected_pc, selected_ac,
@@ -2446,8 +2493,8 @@ def update_polling_charts(selected_pc, selected_ac, selected_mandal, selected_po
 
     elif selected_pc:
         title = html.Div([
-            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold'}),
+            html.Span(f'Charts for PC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_pc_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
         ])
         # Update polling pie chart based on selected pc
         pie_chart_fig, total_count = update_pie_chart(selected_pc_label, selected_ac_label, selected_pc, None, None,
@@ -2462,8 +2509,8 @@ def update_polling_charts(selected_pc, selected_ac, selected_mandal, selected_po
 
     elif selected_ac:
         title = html.Div([
-            html.Span(f'Charts for AC: ', style={'color': 'black', 'font-weight': 'bold'}),
-            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold'}),
+            html.Span(f'Charts for AC: ', style={'color': 'black', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
+            html.Span(selected_ac_label, style={'color': 'red', 'font-weight': 'bold', 'font-size': '20px', 'font-family': 'Arial'}),
         ])
         # Update polling pie chart based on selected ac
         pie_chart_fig, total_count = update_pie_chart(selected_pc_label, selected_ac_label, None, selected_ac, None,
@@ -2508,31 +2555,11 @@ def update_pie_chart(selected_pc_label, selected_ac_label, selected_pc, selected
     if data:
         # Add pie chart trace
         fig.add_trace(go.Pie(labels=df['Caste'], values=df['NumVoters'], marker=dict(colors=df['Color']),
-                             textinfo='label+percent+value', showlegend=False))
+                             textinfo='label+percent+value', showlegend=False, textfont=dict(size=20, color='black', family='Arial Bold')))
 
         # Calculate total count
         total_count = sum(df['NumVoters'])
-
-        # Add annotation for total count
-        fig.update_layout(
-            annotations=[
-                dict(
-                    text=f'',
-                    # text=f'Total Voters: {total_count}',
-                    x=1.0,
-                    y=1.4,  # Adjust the position as needed
-                    showarrow=False,
-                    font=dict(family="Arial", size=20, color="RebeccaPurple"),
-                ),
-                # dict(
-                #    text="<b>Caste-Breakup:</b>",  # Title for the chart
-                #    x=-0.25,
-                #    y=1.4,  # Adjusted position of the title annotation
-                #    showarrow=False,
-                #    font=dict(family="Arial", size=14, color="black"),
-                # )
-            ]
-        )
+        print("pie graph:",total_count)
         fig.update_traces(hole=0.2)
         fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
 
@@ -2545,18 +2572,26 @@ def get_party_color(party):
         return 'gold'
     elif '2014_ycp' in party_lower or '2019_ycp' in party_lower:
         return 'skyblue'
+    elif '2019_jsp' in party_lower:
+        return '#B03060'
     else:
         return 'gray'
 
 
 def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, selected_ac, selected_mandal,
                           selected_polling_village):
-    data1 = get_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, selected_polling_village)
+    data = get_2014_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, selected_polling_village)
+    data1 = get_2019_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, selected_polling_village)
     mandal_str = ', '.join(map(str, selected_mandal)) if selected_mandal else ""
     village_str = ', '.join(map(str, selected_polling_village)) if selected_polling_village else ""
 
-    df = pd.DataFrame(data1,
-                      columns=['2014_tdp', '2014_ycp', '2014_tdpmajority', '2019_tdp', '2019_ycp', '2019_tdp_majority'])
+    df_2014 = pd.DataFrame(data,
+                           columns=['2014_tdp', '2014_ycp', '2014_tdpmajority'])
+    df_2019 = pd.DataFrame(data1,
+                           columns=['2019_tdp', '2019_ycp', '2019_jsp', '2019_tdp_majority'])
+    df_2014.fillna(0, inplace=True)
+    df_2019.fillna(0, inplace=True)
+    df = pd.concat([df_2014, df_2019], axis=1)
 
     # Check if the DataFrame is not empty
     if not df.empty:
@@ -2567,12 +2602,12 @@ def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, sel
         df_transposed = df_transposed.rename(columns={
             '2014_tdp': 'TDP',
             '2014_ycp': 'YCP',
-            '2014_tdpmajority': 'TDP Majority',
+            '2014_tdpmajority': 'TDP <br>Majority',
             '2019_tdp': 'TDP',
             '2019_ycp': 'YCP',
-            '2019_tdp_majority': 'TDP Majority'
+            '2019_jsp': 'JSP',
+            '2019_tdp_majority': 'TDP + JSP <br>Majority',
         })
-
         # Create subplots for 2014 and 2019 with taller subplot_titles
         fig = make_subplots(
             rows=1, cols=2,
@@ -2586,15 +2621,18 @@ def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, sel
         column_mapping = {
             '2014_tdp': 'TDP',
             '2014_ycp': 'YCP',
-            '2014_tdpmajority': 'TDP Majority',
+            '2014_tdpmajority': 'TDP <br>Majority',
             '2019_tdp': 'TDP',
             '2019_ycp': 'YCP',
-            '2019_tdp_majority': 'TDP Majority'
+            '2019_jsp': 'JSP',
+            '2019_tdp_majority': 'TDP + JSP <br>Majority'
         }
-
+        # Define custom parameters for bar width and spacing
+        custom_bar_width = 0.6  # Adjust as needed
+        custom_bar_spacing = 0.1  # Adjust as needed
         # Iterate over each party and add a bar to the corresponding subplot
         for i, year in enumerate(['2014', '2019'], start=1):
-            year_columns = [f'{year}_tdp', f'{year}_ycp', f'{year}_tdpmajority', f'{year}_tdp_majority']
+            year_columns = [f'{year}_tdp', f'{year}_ycp', f'{year}_jsp', f'{year}_tdpmajority', f'{year}_tdp_majority']
             year_data = df_transposed[df_transposed['index'].isin(year_columns)]
 
             # Add a bar chart for the specific year
@@ -2603,7 +2641,6 @@ def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, sel
                 display_name = column_mapping.get(party,
                                                   party)  # Use display name if available, otherwise use original name
                 votes = row[0]
-
                 color = get_party_color(party)
 
                 # Add the bar to the subplot
@@ -2611,7 +2648,7 @@ def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, sel
                     x=[display_name],  # Use display name instead of original name
                     y=[votes],
                     marker=dict(color=color),
-                    width=0.2,
+                    width=custom_bar_width,
                     showlegend=False
                 ), row=1, col=i)
 
@@ -2634,19 +2671,19 @@ def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, sel
                 y=title_annotation_height,
                 text=f'<b>{str(year)}</b>',
                 showarrow=False,
-                font=dict(size=16),
+                font=dict(size=25),
                 xref=f'x{i}',
                 yref=f'y{i}',
                 row=1,
                 col=i,
-                yshift=30  # Adjust this value to move the titles higher
+                yshift=70  # Adjust this value to move the titles higher
             )
 
         # Update layout
         fig.update_layout(
             barmode='group',
             showlegend=False,
-            font=dict(family="Arial", size=14, color="RebeccaPurple"),
+            font=dict(family="Arial Bold", size=20, color="black"),
             plot_bgcolor='white',
             paper_bgcolor='white',
             xaxis=dict(
@@ -2677,7 +2714,6 @@ def update_analysis_chart(selected_pc_label, selected_ac_label, selected_pc, sel
         # Find the minimum and maximum values for the entire DataFrame
         min_value = df_transposed[0].min()
         max_value = df_transposed[0].max()
-
         # Iterate over each subplot and set the y-axis range
         for i in range(1, 3):  # Assuming you have 2 subplots
             fig.update_yaxes(range=[min_value - 10, max_value + 10], zeroline=True, zerolinecolor='black',
@@ -2728,13 +2764,22 @@ def get_polling_data(selected_pc, selected_ac, selected_mandal, selected_polling
                 """
                 cursor.execute(query, (selected_pc, selected_ac))
             elif selected_pc:
-                query = """
-                    SELECT caste, SUM(grand_total) 
-                    FROM BLI 
-                    WHERE pc_code = %s AND caste NOT IN ('Dead', 'Deleted', 'Not Traced')
-                    GROUP BY caste;
-                """
-                cursor.execute(query, (selected_pc, ))
+                if session.get('role') == 'user':
+                    query = """
+                        SELECT caste, SUM(grand_total) 
+                        FROM BLI 
+                        WHERE pc_code = %s AND ac_no = %s AND caste NOT IN ('Dead', 'Deleted', 'Not Traced')
+                        GROUP BY caste;
+                    """
+                    cursor.execute(query, (selected_pc, 79))
+                else:
+                    query = """
+                        SELECT caste, SUM(grand_total) 
+                        FROM BLI 
+                        WHERE pc_code = %s AND caste NOT IN ('Dead', 'Deleted', 'Not Traced')
+                        GROUP BY caste;
+                    """
+                    cursor.execute(query, (selected_pc, ))
             elif selected_ac:
                 query = """
                     SELECT caste, SUM(grand_total) 
@@ -2757,7 +2802,7 @@ def get_polling_data(selected_pc, selected_ac, selected_mandal, selected_polling
             conn.close()
 
 
-def get_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, selected_polling_village):
+def get_2014_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, selected_polling_village):
     polling_data = []
     try:
         conn = get_database_connection()
@@ -2767,35 +2812,108 @@ def get_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, select
             # Modify the SQL query based on your database schema and filter conditions
             if selected_pc and selected_ac and selected_mandal and selected_polling_village:
                 query = """
-                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority 
+                    FROM apt2014_polling_data_all_constituencies_
+                    WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s AND village = %s;
+                """
+                cursor.execute(query, (selected_pc, selected_ac, selected_mandal, selected_polling_village))
+            elif selected_pc and selected_ac and selected_mandal:
+                query = """
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority
+                    FROM apt2014_polling_data_all_constituencies_
+                    WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s;
+                """
+                cursor.execute(query, (selected_pc, selected_ac, selected_mandal))
+            elif selected_pc and selected_ac:
+                query = """
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority
+                    FROM apt2014_polling_data_all_constituencies_
+                    WHERE pc_code = %s AND ac_code = %s;
+                """
+                cursor.execute(query, (selected_pc, selected_ac))
+            elif selected_pc:
+                if session.get('role') == 'user':
+                    query = """
+                        SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority
+                        FROM apt2014_polling_data_all_constituencies_
+                        WHERE pc_code = %s AND ac_code = %s;
+                    """
+                    cursor.execute(query, (selected_pc, 79))
+                else:
+                    query = """
+                        SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority
+                        FROM apt2014_polling_data_all_constituencies_
+                        WHERE pc_code = %s;
+                    """
+                    cursor.execute(query, (selected_pc, ))
+            elif selected_ac:
+                query = """
+                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority
+                    FROM apt2014_polling_data_all_constituencies_
+                    WHERE ac_code = %s;
+                """
+                cursor.execute(query, (selected_ac, ))
+
+            polling_data = cursor.fetchall()
+
+        return polling_data
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_2019_polling_bar_chart_data(selected_pc, selected_ac, selected_mandal, selected_polling_village):
+    polling_data = []
+    try:
+        conn = get_database_connection()
+        selected_polling_village = selected_polling_village[0] if selected_polling_village else None
+        selected_mandal = selected_mandal[0] if selected_mandal else None
+        with conn.cursor() as cursor:
+            # Modify the SQL query based on your database schema and filter conditions
+            if selected_pc and selected_ac and selected_mandal and selected_polling_village:
+                query = """
+                    SELECT SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(jsp_2019) as 2019_jsp, SUM(tdp_ycp_diff2019) + SUM(jsp_2019) as 2019_tdp_majority 
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s AND village = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal, selected_polling_village))
             elif selected_pc and selected_ac and selected_mandal:
                 query = """
-                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
+                    SELECT SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(jsp_2019) as 2019_jsp, SUM(tdp_ycp_diff2019) + SUM(jsp_2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s AND mandalortown = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac, selected_mandal))
             elif selected_pc and selected_ac:
                 query = """
-                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
+                    SELECT SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(jsp_2019) as 2019_jsp, SUM(tdp_ycp_diff2019) + SUM(jsp_2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE pc_code = %s AND ac_code = %s;
                 """
                 cursor.execute(query, (selected_pc, selected_ac))
             elif selected_pc:
-                query = """
-                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
-                    FROM apt201419_polling_data_all_constituencies_
-                    WHERE pc_code = %s;
-                """
-                cursor.execute(query, (selected_pc, ))
+                if session.get('role') == 'user':
+                    query = """
+                        SELECT SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(jsp_2019) as 2019_jsp, SUM(tdp_ycp_diff2019) + SUM(jsp_2019) as 2019_tdp_majority
+                        FROM apt201419_polling_data_all_constituencies_
+                        WHERE pc_code = %s AND ac_code = %s;
+                    """
+                    cursor.execute(query, (selected_pc, 79))
+                else:
+                    query = """
+                        SELECT SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(jsp_2019) as 2019_jsp, SUM(tdp_ycp_diff2019) + SUM(jsp_2019) as 2019_tdp_majority
+                        FROM apt201419_polling_data_all_constituencies_
+                        WHERE pc_code = %s;
+                    """
+                    cursor.execute(query, (selected_pc, ))
             elif selected_ac:
                 query = """
-                    SELECT SUM(tdp2014) as 2014_tdp, SUM(ysrcp2014) as 2014_ycp, SUM(tdp_ycp_diff2014) as 2014_tdpmajority, SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(tdp_ycp_diff2019) as 2019_tdp_majority
+                    SELECT SUM(tdp2019) as 2019_tdp, SUM(ysrcp2019) as 2019_ycp, SUM(jsp_2019) as 2019_jsp, SUM(tdp_ycp_diff2019) + SUM(jsp_2019) as 2019_tdp_majority
                     FROM apt201419_polling_data_all_constituencies_
                     WHERE ac_code = %s;
                 """
@@ -2836,22 +2954,15 @@ def update_age_group_chart(selected_pc_label, selected_ac_label, selected_pc, se
     }
     age_group_fig = go.Figure()
     if age_group_data:
-        age_group_fig.add_trace(go.Pie(labels=age_group_df['Age_Group'], values=age_group_df['NumVoters'],
-                                       marker=dict(colors=age_group_df['Color']),
-                                       textinfo='label+percent+value', showlegend=False))
+        age_group_fig.add_trace(go.Pie(
+            labels=age_group_df['Age_Group'],
+            values=age_group_df['NumVoters'],
+            marker=dict(colors=age_group_df['Color']),
+            textinfo='label+percent+value',
+            showlegend=False,
+            textfont=dict(size=20, color='black', family='Arial Bold')  # Setting font properties
+        ))
 
-        # Add annotation for total count
-        # age_group_fig.update_layout(
-        #    annotations=[
-        #        dict(
-        #            text="<b>2024 Age Group-Breakup:</b>",  # Title for the chart
-        #            x=-0.18,
-        #            y=1.4,  # Adjusted position of the title annotation
-        #            showarrow=False,
-        #            font=dict(family="Arial", size=14, color="black"),
-        #        )
-        #    ]
-        # )
         age_group_fig.update_traces(hole=0.2)
         age_group_fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
 
@@ -2915,6 +3026,10 @@ def get_age_group_data(selected_pc, selected_ac, selected_mandal, selected_polli
             conn.close()
 
 
+prev_selected_village = None
+prev_selected_caste = None
+
+
 # Callback to update the sub-caste bar chart based on filter selections
 @dash_app1.callback(
     Output('sub-caste-polling-chart', 'figure'),
@@ -2937,9 +3052,19 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
     voters_caste_perc = ''
     total_voters_caste = ''
     estimated_2024_total = 0
+    global prev_selected_village, prev_selected_caste
+    if prev_selected_village is not None and prev_selected_caste is not None and prev_selected_village != selected_polling_village:
+        # Reset caste dropdown to None if a caste is selected
+        selected_polling_caste = None
+
+    # Update the previous village and caste selections with the current ones
+    prev_selected_village = selected_polling_village
+    prev_selected_caste = selected_polling_caste
+
     selected_pc_label = next((option['label'] for option in pcoptions if option['value'] == selected_pc), None)
     selected_ac_label = next((option['label'] for option in acoptions if option['value'] == selected_ac), None)
-
+    print('total_polling:', selected_polling_caste)
+    print('total_polling:', total_polling_voters)
     if selected_pc and selected_ac and selected_mandal and selected_polling_village and selected_polling_caste:
         # Assuming get_polling_sub_caste_data returns a list of tuples (sub_caste, num_voters)
         data1 = get_polling_sub_caste_data(selected_pc, selected_ac, selected_mandal, selected_polling_village,
@@ -2955,12 +3080,12 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
             voters_caste_perc = caste_str
             total_voters_caste = caste_str
             title = f'<b>Sub-Caste Breakup PC:</b> <b style="color:red;">{selected_pc_label}</b>, <b>AC:</b> <b style="color:red;">{selected_ac_label}</b>, <b>Mandal:</b> <b style="color:red;">{mandal_str}</b>,' \
-                    f' <b>Village:</b> <b style="color:red;">{village_str}</b>, <b>Caste:</b> <b style="color:red;">{caste_str}</b>'
+                    f' <br><b>Village:</b> <b style="color:red;">{village_str}</b>, <b>Caste:</b> <b style="color:red;">{caste_str}</b>'
         else:
             voters_caste_perc = 'All'
             total_voters_caste = 'All Caste'
             title = f'<b>Sub-Caste Breakup PC:</b> <b style="color:red;">{selected_pc_label}</b>, <b>AC:</b> <b style="color:red;">{selected_ac_label}</b>, <b>Mandal:</b> <b style="color:red;">{mandal_str}</b>,' \
-                    f' <b>Village:</b> <b style="color:red;">{village_str}</b>, <b>Caste:</b> <b style="color:red;">All</b>'
+                    f' <br><b>Village:</b> <b style="color:red;">{village_str}</b>, <b>Caste:</b> <b style="color:red;">All</b>'
     elif selected_pc and selected_ac and selected_mandal and selected_polling_caste:
         # Assuming get_polling_sub_caste_data returns a list of tuples (sub_caste, num_voters)
         data1 = get_polling_sub_caste_data(selected_pc, selected_ac, selected_mandal, None, selected_polling_caste)
@@ -2973,7 +3098,7 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
             voters_caste_perc = caste_str
             total_voters_caste = caste_str
             title = f'<b>Sub-Caste Breakup PC:</b> <b style="color:red;">{selected_pc_label}</b>, <b>AC:</b> <b style="color:red;">{selected_ac_label}</b>, <b>Mandal:</b> <b style="color:red;">{mandal_str}</b>,' \
-                    f' <b>Caste:</b> <b style="color:red;">{caste_str}</b>'
+                    f' <br><b>Caste:</b> <b style="color:red;">{caste_str}</b>'
         else:
             voters_caste_perc = 'All'
             total_voters_caste = 'All Caste'
@@ -3067,24 +3192,24 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
     sub_caste_fig = go.Figure(data=[go.Table(
         header=dict(values=['Sub Caste', 'Caste', '2019 Num of Voters', 'Percentage of', '2024 Estimated', 'Comments'],
                     align=['left', 'center', 'center'],
-                    font=dict(size=14),
+                    font=dict(family="Arial Bold", size=20, color="black"),
                     height=30,
                     fill=dict(color='lightgray'),
                     line=dict(color='darkslategray', width=2)),
         cells=dict(values=[df['Sub-Caste'], df['Caste'], df['NumVoters'].astype(str), df['TotalPercentage'],
                            df['2024 Estimated'], ''],
                    align=['left', 'center', 'center'],
-                   font=dict(size=14),
-                   height=20,
+                   font=dict(family="Arial Bold", size=20, color="black"),
+                   height=30,
                    fill=dict(color='white'),
                    line=dict(color='darkslategray', width=1)),
     )])
     # Add <colgroup> and <col> elements to adjust column widths
     sub_caste_fig.update_layout(
         title=title,
-        margin=dict(b=80, t=60, l=40, r=40),
-        font=dict(family="Arial", size=14, color="RebeccaPurple"),
-        title_font=dict(family="Arial", size=12, color="black"),
+        margin=dict(b=80, t=60, l=20, r=40),
+        font=dict(family="Arial Bold", size=30, color="black"),
+        title_font=dict(family="Arial Bold", size=30, color="black"),
         plot_bgcolor='white',
         paper_bgcolor='white',
         # Increase space between rows
@@ -3104,15 +3229,15 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
         ),
     )
     # Set the column widths
-    column_widths = [0.1, 0.03, 0.05, 0.05, 0.04, 0.2]  # Adjust as needed
+    column_widths = [0.2, 0.03, 0.05, 0.05, 0.07, 0.2]  # Adjust as needed
 
     # Apply the column widths
     sub_caste_fig.update_layout(
         autosize=True,
         template="plotly_white",  # Apply Plotly's white template
-        font=dict(family="Arial"),  # Adjust font family
-        title_font=dict(size=14),  # Adjust title font size
-        margin=dict(l=20, r=65, t=45, b=20),  # Adjust margins
+        font=dict(family="Arial Bold"),  # Adjust font family
+        title_font=dict(size=20),  # Adjust title font size
+        margin=dict(l=20, r=65, t=80, b=20),  # Adjust margins
     )
 
     # Update the table layout with the column widths
@@ -3123,99 +3248,177 @@ def update_polling_sub_caste_chart(selected_pc, selected_ac, selected_mandal, se
 def getEstimated2024Count(selected_pc, selected_ac, selected_mandal, selected_polling_village):
     conn = None
     cursor = None
-    try:
-        conn = get_database_connection()
-        cursor = conn.cursor()
+    if session.get('role') == 'user':
+        try:
+            conn = get_database_connection()
+            cursor = conn.cursor()
 
-        query = """
-            SELECT SUM(groupcount) 
-            FROM ap_age_group_counts_jan24 
-            WHERE 1=1
-        """
+            query = """
+                SELECT SUM(groupcount) 
+                FROM ap_age_group_counts_jan24 
+                WHERE 1=1
+            """
 
-        params = []
+            params = []
 
-        if selected_pc:
-            query += " AND pc_number = %s"
-            params.append(selected_pc)
-        if selected_ac:
-            query += " AND assembly_number = %s"
-            params.append(selected_ac)
-        if selected_mandal:
-            selected_mandal = selected_mandal[0] if selected_mandal else None
-            query += " AND mandal = %s"
-            params.append(selected_mandal)
-        if selected_polling_village:
-            selected_polling_village = selected_polling_village[0] if selected_polling_village else None
-            query += " AND village_or_area_name = %s"
-            params.append(selected_polling_village)
+            if selected_pc:
+                query += " AND pc_number = %s AND assembly_number = 79"
+                params.append(selected_pc)
+            if selected_mandal:
+                selected_mandal = selected_mandal[0] if selected_mandal else None
+                query += " AND mandal = %s"
+                params.append(selected_mandal)
+            if selected_polling_village:
+                selected_polling_village = selected_polling_village[0] if selected_polling_village else None
+                query += " AND village_or_area_name = %s"
+                params.append(selected_polling_village)
 
-        cursor.execute(query, params)
+            cursor.execute(query, params)
 
-        # Fetch the result
-        total_estimated_count = cursor.fetchone()[0]
-        return total_estimated_count
-    except Exception as e:
-        print("Error:", e)
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+            # Fetch the result
+            total_estimated_count = cursor.fetchone()[0]
+            return total_estimated_count
+        except Exception as e:
+            print("Error:", e)
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+    else:
+        try:
+            conn = get_database_connection()
+            cursor = conn.cursor()
+
+            query = """
+                SELECT SUM(groupcount) 
+                FROM ap_age_group_counts_jan24 
+                WHERE 1=1
+            """
+
+            params = []
+
+            if selected_pc:
+                query += " AND pc_number = %s"
+                params.append(selected_pc)
+            if selected_ac:
+                query += " AND assembly_number = %s"
+                params.append(selected_ac)
+            if selected_mandal:
+                selected_mandal = selected_mandal[0] if selected_mandal else None
+                query += " AND mandal = %s"
+                params.append(selected_mandal)
+            if selected_polling_village:
+                selected_polling_village = selected_polling_village[0] if selected_polling_village else None
+                query += " AND village_or_area_name = %s"
+                params.append(selected_polling_village)
+
+            cursor.execute(query, params)
+
+            # Fetch the result
+            total_estimated_count = cursor.fetchone()[0]
+            return total_estimated_count
+        except Exception as e:
+            print("Error:", e)
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 
 def get_polling_sub_caste_data(selected_pc, selected_ac, selected_mandal, selected_polling_village,
                                selected_polling_caste):
     conn = None
     cursor = None
+    if session.get('role') == 'user':
+        try:
+            conn = get_database_connection()
+            cursor = conn.cursor()
 
-    try:
-        conn = get_database_connection()
-        cursor = conn.cursor()
+            query = """
+                SELECT caste, subcaste, SUM(grand_total) 
+                FROM BLI 
+                WHERE caste not in ('Dead', 'Deleted', 'Not Traced')
+            """
 
-        query = """
-            SELECT caste, subcaste, SUM(grand_total) 
-            FROM BLI 
-            WHERE caste not in ('Dead', 'Deleted', 'Not Traced')
-        """
+            params = []
 
-        params = []
+            if selected_pc:
+                query += " AND pc_code = %s AND ac_no = 79"
+                params.append(selected_pc)
+            if selected_mandal:
+                selected_mandal = selected_mandal[0] if selected_mandal else None
+                query += " AND mandal_name = %s"
+                params.append(selected_mandal)
+            if selected_polling_village:
+                selected_polling_village = selected_polling_village[0] if selected_polling_village else None
+                query += " AND village_name = %s"
+                params.append(selected_polling_village)
+            if selected_polling_caste != 'casteall':
+                selected_polling_caste = selected_polling_caste[0] if selected_polling_caste else None
+                query += " AND caste = %s"
+                params.append(selected_polling_caste)
 
-        if selected_pc:
-            query += " AND pc_code = %s"
-            params.append(selected_pc)
-        if selected_ac:
-            query += " AND ac_no = %s"
-            params.append(selected_ac)
-        if selected_mandal:
-            selected_mandal = selected_mandal[0] if selected_mandal else None
-            query += " AND mandal_name = %s"
-            params.append(selected_mandal)
-        if selected_polling_village:
-            selected_polling_village = selected_polling_village[0] if selected_polling_village else None
-            query += " AND village_name = %s"
-            params.append(selected_polling_village)
-        if selected_polling_caste != 'casteall':
-            selected_polling_caste = selected_polling_caste[0] if selected_polling_caste else None
-            query += " AND caste = %s"
-            params.append(selected_polling_caste)
+            # Group by subcaste and execute the query
+            query += " GROUP BY caste, subcaste;"
+            cursor.execute(query, params)
 
-        # Group by subcaste and execute the query
-        query += " GROUP BY caste, subcaste;"
-        cursor.execute(query, params)
+            # Fetch all the results
+            sub_caste_data = cursor.fetchall()
+            return sub_caste_data
+        finally:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+    else:
+        try:
+            conn = get_database_connection()
+            cursor = conn.cursor()
 
-        # Fetch all the results
-        sub_caste_data = cursor.fetchall()
+            query = """
+                SELECT caste, subcaste, SUM(grand_total) 
+                FROM BLI 
+                WHERE caste not in ('Dead', 'Deleted', 'Not Traced')
+            """
 
-        # Return the fetched data
-        return sub_caste_data
+            params = []
 
-    finally:
-        # Close the cursor and connection in the final block to ensure they are always closed
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+            if selected_pc:
+                query += " AND pc_code = %s"
+                params.append(selected_pc)
+            if selected_ac:
+                query += " AND ac_no = %s"
+                params.append(selected_ac)
+            if selected_mandal:
+                selected_mandal = selected_mandal[0] if selected_mandal else None
+                query += " AND mandal_name = %s"
+                params.append(selected_mandal)
+            if selected_polling_village:
+                selected_polling_village = selected_polling_village[0] if selected_polling_village else None
+                query += " AND village_name = %s"
+                params.append(selected_polling_village)
+            if selected_polling_caste != 'casteall':
+                selected_polling_caste = selected_polling_caste[0] if selected_polling_caste else None
+                query += " AND caste = %s"
+                params.append(selected_polling_caste)
+
+            # Group by subcaste and execute the query
+            query += " GROUP BY caste, subcaste;"
+            cursor.execute(query, params)
+
+            # Fetch all the results
+            sub_caste_data = cursor.fetchall()
+
+            # Return the fetched data
+            return sub_caste_data
+        finally:
+            # Close the cursor and connection in the final block to ensure they are always closed
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 
 def get_age_group_colors(age_group_list):
